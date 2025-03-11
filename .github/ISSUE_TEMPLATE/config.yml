@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+    - name: 📚 Documentation
+      url: https://github.com/Plimsky/Perforce-Friend#readme
+      about: Check out the project documentation before creating an issue
+    - name: 💬 Ask a Question
+      url: https://github.com/Plimsky/Perforce-Friend/discussions
+      about: Please ask and answer questions in GitHub Discussions

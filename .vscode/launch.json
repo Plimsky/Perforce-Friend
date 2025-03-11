@@ -1,0 +1,22 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Next.js: All-in-One Debug",
+            "type": "node-terminal",
+            "request": "launch",
+            "command": "npm run dev",
+            "cwd": "${workspaceFolder}",
+            "sourceMaps": true,
+            "skipFiles": ["<node_internals>/**"],
+            "console": "integratedTerminal",
+            "preLaunchTask": "clean-next-cache",
+            "env": {
+                "NODE_OPTIONS": "--enable-source-maps --inspect"
+            }
+        }
+    ]
+}
