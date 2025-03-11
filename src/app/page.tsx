@@ -4,9 +4,11 @@ import { useState, useEffect } from 'react';
 import P4ConnectionForm, { P4Config } from '../components/P4ConnectionForm';
 import CheckedOutFilesList from '../components/CheckedOutFilesList';
 import ModifiedFilesList from '../components/ModifiedFilesList';
+import P4CommandLogViewer from '../components/P4CommandLogViewer';
 import { P4Service } from '../lib/p4Service';
 import { P4CheckedOutFile, P4ModifiedFile } from '../types/p4';
 import useLocalStorage from '../lib/useLocalStorage';
+import { initP4CommandLogger, logP4CommandFromAPI } from '../lib/p4CommandLogger';
 
 export default function Home() {
   const [isConnecting, setIsConnecting] = useState(false);
@@ -24,6 +26,7 @@ export default function Home() {
   const [showClientRootInput, setShowClientRootInput] = useState(false);
   const [usingCachedData, setUsingCachedData] = useState(false);
   const [cacheTime, setCacheTime] = useState<string | null>(null);
+  const [showCommandLogs, setShowCommandLogs] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState({
     isConnected: false,
     message: 'Not connected to Perforce server',
@@ -90,19 +93,28 @@ export default function Home() {
   const handleConnect = async (config: P4Config) => {
     try {
       setIsConnecting(true);
+
       const p4Service = P4Service.getInstance();
       const result = await p4Service.connect(config);
 
+      // Log the command
+      logP4CommandFromAPI('p4 connect');
+
       if (result.success) {
-        const status = p4Service.getConnectionStatus();
+        // Update connection status
         setConnectionStatus({
-          isConnected: status.isConnected,
+          isConnected: true,
           message: result.message,
-          details: status.details
+          details: config
         });
 
-        // Load checked out files after successful connection
+        // Fetch files after successful connection
         await fetchCheckedOutFiles();
+
+        // Fetch modified files if enabled
+        if (showModifiedFiles) {
+          await fetchModifiedFiles();
+        }
       } else {
         setConnectionStatus({
           isConnected: false,
@@ -111,10 +123,10 @@ export default function Home() {
         });
       }
     } catch (error) {
-      console.error('Error in connection handler:', error);
+      console.error('Error connecting to Perforce:', error);
       setConnectionStatus({
         isConnected: false,
-        message: error instanceof Error ? error.message : 'Unknown error occurred',
+        message: error instanceof Error ? error.message : 'Failed to connect to Perforce',
         details: {}
       });
     } finally {
@@ -129,6 +141,9 @@ export default function Home() {
 
       const p4Service = P4Service.getInstance();
       const result = await p4Service.getCheckedOutFiles();
+
+      // Log the command
+      logP4CommandFromAPI('p4 opened');
 
       if (result.success && result.files) {
         setCheckedOutFiles(result.files);
@@ -164,23 +179,23 @@ export default function Home() {
         params.append('clientRoot', p4ClientRoot);
       }
 
-      params.append('maxFiles', maxFiles.toString());
+      if (maxFiles) {
+        params.append('maxFiles', maxFiles.toString());
+      }
 
       if (forceRefresh) {
         params.append('forceRefresh', 'true');
       }
 
-      if (params.toString()) {
-        url += `?${params.toString()}`;
+      const queryString = params.toString();
+      if (queryString) {
+        url += `?${queryString}`;
       }
 
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      // Log the command (approximate since the actual command is constructed server-side)
+      logP4CommandFromAPI(`p4 reconcile -n${forceRefresh ? ' (force refresh)' : ''}`);
 
+      const response = await fetch(url);
       const data = await response.json();
 
       if (!response.ok) {
@@ -304,23 +319,40 @@ export default function Home() {
     }
   };
 
+  // Initialize command logger
+  useEffect(() => {
+    const cleanup = initP4CommandLogger();
+    return cleanup;
+  }, []);
+
   return (
     <main className="min-h-screen p-8">
-      <div className="max-w-6xl mx-auto bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+      <div className="max-w-7xl mx-auto bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
             Perforce Friend
           </h1>
 
-          {connectionStatus.isConnected && (
-            <button
-              onClick={handleLogout}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md 
-                      text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-            >
-              Logout
-            </button>
-          )}
+          <div className="flex space-x-3">
+            {connectionStatus.isConnected && (
+              <>
+                <button
+                  onClick={() => setShowCommandLogs(true)}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md 
+                          text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Command Logs
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md 
+                          text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                >
+                  Logout
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         <p className="text-gray-600 dark:text-gray-300 mb-6">
@@ -507,6 +539,9 @@ export default function Home() {
           </div>
         )}
       </div>
+
+      {/* P4 Command Log Viewer */}
+      <P4CommandLogViewer isOpen={showCommandLogs} onClose={() => setShowCommandLogs(false)} />
     </main>
   );
 } 

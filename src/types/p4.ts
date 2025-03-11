@@ -72,3 +72,18 @@ export type P4ModifiedFile = {
      */
     type: string;
 };
+
+/**
+ * Represents a log entry for a P4 command execution
+ */
+export type P4CommandLog = {
+    /**
+     * The P4 command that was executed
+     */
+    command: string;
+
+    /**
+     * Timestamp when the command was executed
+     */
+    timestamp: string;
+};

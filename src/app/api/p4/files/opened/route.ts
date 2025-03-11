@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { P4CheckedOutFile } from "../../../../../types/p4";
+import { P4Service } from "../../../../../lib/p4Service";
+import { executeP4Command } from "../../../../../lib/serverUtils";
 
 // Set to true to use mock data instead of executing p4 command
 const USE_MOCK_DATA = false;
@@ -125,17 +127,31 @@ export async function GET() {
                 throw new Error("Perforce command-line client (p4) is not installed or not in PATH");
             }
 
-            // Execute 'p4 opened' command
-            const output = execSync("p4 opened", { encoding: "utf8" });
+            // Execute 'p4 opened' command with logging
+            const command = "p4 opened";
+            const output = executeP4Command(command);
             console.log("[DEBUG] P4 opened output:", output);
 
+            // Add script to log on client-side
+            const logScript = `
+                <script>
+                if (window.logP4Command) {
+                    window.logP4Command("${command.replace(/"/g, '\\"')}");
+                }
+                </script>
+            `;
+
+            // Parse output
             const files = parseP4OpenedOutput(output);
             console.log("[DEBUG] Parsed files:", files);
 
-            return NextResponse.json({
+            const response = NextResponse.json({
                 success: true,
                 files,
             });
+
+            // Return the response
+            return response;
         } catch (cmdError: any) {
             console.error("[DEBUG] P4 command error:", cmdError);
 

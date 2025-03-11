@@ -1,11 +1,17 @@
 import { P4Config } from "../components/P4ConnectionForm";
-import { P4CheckedOutFile, P4ModifiedFile } from "../types/p4";
+import { P4CheckedOutFile, P4ModifiedFile, P4CommandLog } from "../types/p4";
 
 // Local storage key for Perforce connection
 const P4_CONNECTION_KEY = "perforce_connection";
 
 // Session storage key for Perforce credentials (not persisted after browser closes)
 const P4_CREDENTIALS_KEY = "perforce_credentials";
+
+// Local storage key for P4 command logs
+const P4_COMMAND_LOGS_KEY = "perforce_command_logs";
+
+// Maximum number of command logs to keep
+const MAX_COMMAND_LOGS = 100;
 
 /**
  * Service for handling Perforce-related operations
@@ -374,5 +380,53 @@ export class P4Service {
             this.isConnected = true;
             this.connectionDetails = storedConnection;
         }
+    }
+
+    /**
+     * Log a P4 command execution
+     */
+    public logCommand(command: string): void {
+        try {
+            // Get existing logs
+            const existingLogsJson = localStorage.getItem(P4_COMMAND_LOGS_KEY);
+            const existingLogs: P4CommandLog[] = existingLogsJson ? JSON.parse(existingLogsJson) : [];
+
+            // Add new log entry
+            const newLog: P4CommandLog = {
+                command,
+                timestamp: new Date().toISOString(),
+            };
+
+            // Add to the beginning of the array (most recent first)
+            const updatedLogs = [newLog, ...existingLogs];
+
+            // Keep only the most recent MAX_COMMAND_LOGS entries
+            const trimmedLogs = updatedLogs.slice(0, MAX_COMMAND_LOGS);
+
+            // Save back to localStorage
+            localStorage.setItem(P4_COMMAND_LOGS_KEY, JSON.stringify(trimmedLogs));
+        } catch (error) {
+            console.error("Error logging P4 command:", error);
+        }
+    }
+
+    /**
+     * Get all logged P4 commands
+     */
+    public getCommandLogs(): P4CommandLog[] {
+        try {
+            const logsJson = localStorage.getItem(P4_COMMAND_LOGS_KEY);
+            return logsJson ? JSON.parse(logsJson) : [];
+        } catch (error) {
+            console.error("Error getting P4 command logs:", error);
+            return [];
+        }
+    }
+
+    /**
+     * Clear all command logs
+     */
+    public clearCommandLogs(): void {
+        localStorage.removeItem(P4_COMMAND_LOGS_KEY);
     }
 }
