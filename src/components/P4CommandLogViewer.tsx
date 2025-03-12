@@ -9,6 +9,35 @@ interface P4CommandLogViewerProps {
     onClose: () => void;
 }
 
+// Helper function to parse command details
+function parseCommandDetails(command: string): {
+    baseCommand: string;
+    details: { [key: string]: string }
+} {
+    // Extract base command and details section
+    const detailsMatch = command.match(/^(.*?)(?:\s+\[(.*)\])?$/);
+
+    if (!detailsMatch) {
+        return { baseCommand: command, details: {} };
+    }
+
+    const baseCommand = detailsMatch[1];
+    const detailsStr = detailsMatch[2] || '';
+
+    // Parse details into key-value pairs
+    const details: { [key: string]: string } = {};
+    if (detailsStr) {
+        detailsStr.split(' | ').forEach(pair => {
+            const [key, value] = pair.split(': ');
+            if (key && value) {
+                details[key] = value;
+            }
+        });
+    }
+
+    return { baseCommand, details };
+}
+
 export default function P4CommandLogViewer({ isOpen, onClose }: P4CommandLogViewerProps) {
     const [logs, setLogs] = useState<P4CommandLog[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -44,13 +73,39 @@ export default function P4CommandLogViewer({ isOpen, onClose }: P4CommandLogView
         ? logs
         : logs.filter(log => log.command.toLowerCase().includes(searchTerm.toLowerCase()));
 
+    // Add additional columns
+    const formatTime = (timeStr: string | undefined) => {
+        if (!timeStr) return '';
+
+        // If it's just a number with 's' suffix like '2.3s'
+        if (timeStr.endsWith('s') && !isNaN(parseFloat(timeStr))) {
+            const seconds = parseFloat(timeStr);
+            if (seconds < 1) {
+                return `${(seconds * 1000).toFixed(0)}ms`;
+            }
+            return `${seconds.toFixed(1)}s`;
+        }
+
+        return timeStr;
+    };
+
+    // Handle command styling based on status
+    const getCommandStyle = (command: string) => {
+        if (command.includes('COMPLETED')) {
+            return 'text-green-700 dark:text-green-400';
+        } else if (command.includes('FAILED') || command.includes('SKIPPED')) {
+            return 'text-red-600 dark:text-red-400';
+        }
+        return 'text-gray-900 dark:text-gray-100';
+    };
+
     if (!isOpen) {
         return null;
     }
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-3/4 h-3/4 max-w-6xl overflow-hidden">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-4/5 h-4/5 max-w-7xl overflow-hidden">
                 <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
                     <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Perforce Command Logs</h2>
                     <button
@@ -93,21 +148,48 @@ export default function P4CommandLogViewer({ isOpen, onClose }: P4CommandLogView
                             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                                 <thead className="bg-gray-100 dark:bg-gray-800 sticky top-0">
                                     <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Timestamp</th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Command</th>
+                                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-28">Timestamp</th>
+                                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Command</th>
+                                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20">Time</th>
+                                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-20">Status</th>
+                                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Folder</th>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                    {filteredLogs.map((log, index) => (
-                                        <tr key={index} className={index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'}>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                                                {formatDate(log.timestamp)}
-                                            </td>
-                                            <td className="px-6 py-4 text-sm font-mono text-gray-900 dark:text-gray-100 break-all">
-                                                {log.command}
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    {filteredLogs.map((log, index) => {
+                                        const { baseCommand, details } = parseCommandDetails(log.command);
+                                        const executionTime = formatTime(details.executionTime);
+                                        const status = details.status || (
+                                            baseCommand.includes('COMPLETED') ? 'completed' :
+                                                baseCommand.includes('FAILED') ? 'failed' :
+                                                    baseCommand.includes('SKIPPED') ? 'skipped' : ''
+                                        );
+                                        const folder = details.folder || '';
+
+                                        return (
+                                            <tr key={index} className={index % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'}>
+                                                <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
+                                                    {formatDate(log.timestamp)}
+                                                </td>
+                                                <td className={`px-3 py-3 text-sm font-mono break-all ${getCommandStyle(log.command)}`}>
+                                                    {baseCommand.replace(/ - COMPLETED$/, '')}
+                                                </td>
+                                                <td className="px-3 py-3 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
+                                                    {executionTime}
+                                                </td>
+                                                <td className={`px-3 py-3 whitespace-nowrap text-xs ${status === 'success' || status === 'completed' ? 'text-green-600 dark:text-green-400' :
+                                                    status === 'error' || status === 'failed' ? 'text-red-600 dark:text-red-400' :
+                                                        status === 'skipped' ? 'text-yellow-600 dark:text-yellow-400' :
+                                                            'text-gray-500 dark:text-gray-400'
+                                                    }`}>
+                                                    {status}
+                                                </td>
+                                                <td className="px-3 py-3 text-xs text-gray-500 dark:text-gray-400 truncate" title={folder}>
+                                                    {folder}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         ) : (

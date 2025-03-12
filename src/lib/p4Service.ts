@@ -39,7 +39,7 @@ export class P4Service {
     /**
      * Connect to Perforce server
      */
-    public async connect(config: P4Config): Promise<{ success: boolean; message: string }> {
+    public async connect(config: P4Config): Promise<{ success: boolean; message: string; clientRoot?: string }> {
         try {
             // Call the API endpoint to connect to Perforce
             const response = await fetch("/api/p4/connect", {
@@ -70,14 +70,15 @@ export class P4Service {
 
             return {
                 success: true,
-                message: data.message || "Successfully connected to Perforce",
-                ...(data.serverInfo && { serverInfo: data.serverInfo }),
+                message: data.message || "Connected to Perforce server",
+                clientRoot: data.clientRoot, // Pass through the client root from the API
             };
         } catch (error) {
-            console.error("Error connecting to Perforce:", error);
+            this.isConnected = false;
+            this.connectionDetails = {};
             return {
                 success: false,
-                message: error instanceof Error ? error.message : "Unknown error occurred",
+                message: error instanceof Error ? error.message : "Failed to connect to Perforce server",
             };
         }
     }
@@ -195,11 +196,16 @@ export class P4Service {
                 };
             }
 
-            const response = await fetch("/api/p4/files/modified", {
+            // Create URL with maxFiles parameter
+            const url = new URL("/api/p4/files/modified", window.location.origin);
+            url.searchParams.set("maxFiles", "1000");
+
+            const response = await fetch(url.toString(), {
                 method: "GET",
                 headers: {
                     "Content-Type": "application/json",
                 },
+                cache: "no-store",
             });
 
             const data = await response.json();
