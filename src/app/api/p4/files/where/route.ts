@@ -66,7 +66,7 @@ export async function POST(req: Request) {
                         if (parts.length >= 3) {
                             const localPath = parts[parts.length - 1]; // Last part is the local path
 
-                            console.log("[DEBUG] Mapped:", depotPath, "->", localPath);
+                            //console.log("[DEBUG] Mapped:", depotPath, "->", localPath);
                             pathMap[depotPath] = localPath;
                         } else {
                             console.log("[DEBUG] Failed to parse where output for:", depotPath, "Output:", output);

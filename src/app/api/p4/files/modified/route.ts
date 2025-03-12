@@ -29,8 +29,35 @@ const mockModifiedFiles: P4ModifiedFile[] = [
     },
 ];
 
-// Cache expiration time in milliseconds (10 minutes)
-const CACHE_EXPIRY_MS = 360 * 60 * 1000;
+// Cache expiration time in milliseconds (60 minutes)
+const CACHE_EXPIRY_MS = 60 * 60 * 1000;
+
+// Import event emitter for command logging
+const { EventEmitter } = require("events");
+const p4CommandEmitter = new EventEmitter();
+
+// Function to log detailed p4 reconcile commands
+function logDetailedP4Command(command: string, details: any = {}) {
+    const timestamp = new Date().toISOString();
+
+    // Format the command log with details included
+    const formattedDetails = Object.entries(details)
+        .filter(([key, value]) => key !== "type" && key !== "command" && key !== "timestamp")
+        .map(([key, value]) => `${key}: ${value}`)
+        .join(" | ");
+
+    const fullCommandLog = formattedDetails ? `${command} [${formattedDetails}]` : command;
+
+    console.log(`[P4 COMMAND LOG] ${timestamp} - ${fullCommandLog}`);
+
+    // For client-side usage, we'll just attach this to the response
+    return {
+        timestamp,
+        command: fullCommandLog,
+        rawCommand: command,
+        ...details,
+    };
+}
 
 /**
  * Parse the output of 'p4 reconcile -n' command into structured data
@@ -101,94 +128,186 @@ function parseP4ReconcileOutput(output: string, maxFiles: number = 0): P4Modifie
 }
 
 /**
- * Generates a unique cache key based on the client root
+ * Generate a cache key based on the client root and inclusion folders
  */
-function getCacheKey(clientRoot: string): string {
-    // Create a sanitized version of the client root for use in filenames
-    // Replace non-alphanumeric characters with underscores
-    const sanitizedRoot = clientRoot
-        .replace(/[^a-zA-Z0-9]/g, "_")
-        .replace(/__+/g, "_")
-        .substring(0, 50); // Limit length to avoid excessively long filenames
+function getCacheKey(clientRoot: string, inclusionFolders: string[] = []): string {
+    // Normalize client root path for consistent keys
+    const normalizedRoot = clientRoot.replace(/\\/g, "/").toLowerCase();
 
-    return `p4_reconcile_${sanitizedRoot}`;
+    // Include folders in the cache key for different folder combinations
+    const foldersKey = inclusionFolders.length > 0 ? "_" + inclusionFolders.map((f) => f.replace(/[\/\\]/g, "_")).join("_") : "";
+
+    return `p4reconcile_${normalizedRoot.replace(/[\/\\:]/g, "_")}${foldersKey}`;
 }
 
 /**
- * Checks if a cached reconcile result exists and is still valid
+ * Get cached reconcile results if available and not expired
  */
-function getCachedReconcileResults(fs: any, path: any, os: any, clientRoot: string): { output: string | null; cacheFile: string; whereCacheFile: string } {
+function getCachedReconcileResults(
+    fs: any,
+    path: any,
+    os: any,
+    clientRoot: string,
+    inclusionFolders: string[] = [],
+): {
+    output: string | null;
+    cacheFile: string;
+    whereCacheFile: string;
+    metadata: any;
+} {
     try {
-        const tempDir = os.tmpdir();
-        const cacheKey = getCacheKey(clientRoot);
+        // Create temp directory for cache if it doesn't exist
+        const tempDir = path.join(os.tmpdir(), "perforce-friend-cache");
+        if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+        }
+
+        // Generate cache file name based on client root
+        const cacheKey = getCacheKey(clientRoot, inclusionFolders);
         const cacheFile = path.join(tempDir, `${cacheKey}.txt`);
         const whereCacheFile = path.join(tempDir, `${cacheKey}_where.txt`);
         const metadataFile = path.join(tempDir, `${cacheKey}_metadata.json`);
 
-        console.log("[DEBUG] Checking for cached results at:", cacheFile);
+        let metadata: any = {};
+        let creationTime = 0;
 
-        // Check if cache files exist
-        if (!fs.existsSync(cacheFile) || !fs.existsSync(metadataFile)) {
-            console.log("[DEBUG] Cache file not found");
-            return { output: null, cacheFile, whereCacheFile };
+        // Check if we have cached metadata and if it's still valid
+        if (fs.existsSync(metadataFile)) {
+            try {
+                const metadataContent = fs.readFileSync(metadataFile, { encoding: "utf8" });
+                metadata = JSON.parse(metadataContent);
+                if (metadata.timestamp) {
+                    creationTime = new Date(metadata.timestamp).getTime();
+                }
+            } catch (e) {
+                console.error("[DEBUG] Error reading cache metadata:", e);
+            }
         }
 
-        // Read and parse metadata
-        const metadata = JSON.parse(fs.readFileSync(metadataFile, { encoding: "utf8" }));
-        const cacheTime = new Date(metadata.timestamp);
-        const now = new Date();
-
-        // Check if cache is still valid
-        if (now.getTime() - cacheTime.getTime() > CACHE_EXPIRY_MS) {
-            console.log("[DEBUG] Cache expired, created at:", cacheTime);
-            return { output: null, cacheFile, whereCacheFile };
+        // Check if cache exists and is not expired
+        if (fs.existsSync(cacheFile) && Date.now() - creationTime < CACHE_EXPIRY_MS) {
+            console.log("[DEBUG] Using cached reconcile results from:", cacheFile);
+            console.log("[DEBUG] Cache age:", (Date.now() - creationTime) / (60 * 1000), "minutes");
+            const output = fs.readFileSync(cacheFile, { encoding: "utf8" });
+            return { output, cacheFile, whereCacheFile, metadata };
         }
 
-        // Cache is valid, read the actual data
-        console.log("[DEBUG] Using cached reconcile output from:", cacheTime);
-        const output = fs.readFileSync(cacheFile, { encoding: "utf8" });
-        return { output, cacheFile, whereCacheFile };
+        return { output: null, cacheFile, whereCacheFile, metadata };
     } catch (error) {
         console.error("[DEBUG] Error accessing cache:", error);
-        return { output: null, cacheFile: "", whereCacheFile: "" };
+        return { output: null, cacheFile: "", whereCacheFile: "", metadata: {} };
     }
 }
 
 /**
- * Saves reconcile results to cache
+ * Saves reconcile results to cache, appending if data exists for other folders
  */
-function saveReconcileResultsToCache(fs: any, path: any, tempFile: string, cacheFile: string, clientRoot: string): void {
+function saveReconcileResultsToCache(fs: any, path: any, tempFile: string, cacheFile: string, clientRoot: string, inclusionFolders: string[] = [], isAppend: boolean = false): void {
     try {
         const tempDir = path.dirname(cacheFile);
-        const metadataFile = path.join(tempDir, `${getCacheKey(clientRoot)}_metadata.json`);
+        const metadataFile = path.join(tempDir, `${getCacheKey(clientRoot, inclusionFolders)}_metadata.json`);
 
-        // Copy the temporary file to the cache file
-        fs.copyFileSync(tempFile, cacheFile);
-
-        // Save metadata
-        const metadata = {
+        // Read existing metadata if available
+        let metadata: any = {
             timestamp: new Date().toISOString(),
             clientRoot,
+            inclusionFolders,
+            processedFolders: inclusionFolders,
         };
 
+        if (isAppend && fs.existsSync(metadataFile)) {
+            try {
+                const existingMetadata = JSON.parse(fs.readFileSync(metadataFile, { encoding: "utf8" }));
+                // Keep the original timestamp - don't reset the 60-min cache time
+                if (existingMetadata.timestamp) {
+                    metadata.timestamp = existingMetadata.timestamp;
+                }
+
+                // Track which folders we've processed
+                if (existingMetadata.processedFolders) {
+                    const existingFolders = existingMetadata.processedFolders;
+                    // Use Array.from to avoid Set iteration issues
+                    metadata.processedFolders = Array.from(new Set([...existingFolders, ...inclusionFolders]));
+                }
+            } catch (e) {
+                console.error("[DEBUG] Error reading existing metadata:", e);
+            }
+        }
+
+        if (isAppend && fs.existsSync(cacheFile)) {
+            // Append to existing cache file instead of overwriting
+            const newContent = fs.readFileSync(tempFile, { encoding: "utf8" });
+            fs.appendFileSync(cacheFile, newContent);
+            console.log("[DEBUG] Appended reconcile results to cache:", cacheFile);
+        } else {
+            // Create or overwrite the cache file
+            fs.copyFileSync(tempFile, cacheFile);
+            console.log("[DEBUG] Saved reconcile results to cache:", cacheFile);
+        }
+
+        // Save updated metadata
         fs.writeFileSync(metadataFile, JSON.stringify(metadata), { encoding: "utf8" });
-        console.log("[DEBUG] Saved reconcile results to cache:", cacheFile);
     } catch (error) {
         console.error("[DEBUG] Error saving to cache:", error);
     }
+}
+
+// Function to sanitize paths for use in p4 commands
+function sanitizePathForP4Command(folderPath: string): string {
+    // First ensure there are no query parameters
+    const queryParamIndex = folderPath.indexOf("?");
+    if (queryParamIndex > 0) {
+        folderPath = folderPath.substring(0, queryParamIndex);
+    }
+
+    // Remove any trailing slashes
+    folderPath = folderPath.replace(/[\/\\]$/, "");
+
+    // Ensure Windows paths use backslashes consistently
+    // This is important for Perforce which prefers native path separators
+    if (folderPath.includes(":\\")) {
+        folderPath = folderPath.replace(/\//g, "\\");
+    }
+
+    return folderPath;
 }
 
 export async function GET(req: Request) {
     try {
         console.log("[DEBUG] GET /api/p4/files/modified called");
 
+        // Collect command logs for returning to the client
+        const commandLogs: any[] = [];
+
         // Extract the clientRoot if provided as a search parameter
         const url = new URL(req.url);
         let clientRoot = url.searchParams.get("clientRoot") || "";
 
-        // Get the maxFiles parameter to limit results (client-side limit, not passed to p4)
-        const maxFiles = 30000;
-        parseInt(url.searchParams.get("maxFiles") || "100", 10);
+        // Get inclusion folders if provided
+        const inclusionFoldersParam = url.searchParams.get("inclusionFolders") || "";
+        const inclusionFolders = inclusionFoldersParam
+            ? inclusionFoldersParam
+                  .split(",")
+                  .map((folder) => {
+                      // Clean the folder path - remove any query parameters
+                      let cleanPath = folder.trim();
+
+                      // Check for query parameters and remove them
+                      const queryParamIndex = cleanPath.indexOf("?");
+                      if (queryParamIndex > 0) {
+                          console.log(`[DEBUG] Removing query params from folder path: ${cleanPath}`);
+                          cleanPath = cleanPath.substring(0, queryParamIndex);
+                      }
+
+                      return cleanPath;
+                  })
+                  .filter((folder) => folder)
+            : [];
+
+        console.log("[DEBUG] Processed inclusion folders:", inclusionFolders);
+
+        // Get the maxFiles parameter to limit results (client-side limit)
+        const maxFiles = parseInt(url.searchParams.get("maxFiles") || "1000", 10);
 
         // Check if we should force refresh the cache
         const forceRefresh = url.searchParams.get("forceRefresh") === "true";
@@ -267,39 +386,211 @@ export async function GET(req: Request) {
             let fromCache = false;
             let cacheFile = "";
             let whereCacheFile = "";
+            let metadata = {};
 
             if (!forceRefresh) {
-                const cachedResults = getCachedReconcileResults(fs, path, os, clientRoot);
+                const cachedResults = getCachedReconcileResults(fs, path, os, clientRoot, inclusionFolders);
                 output = cachedResults.output;
                 cacheFile = cachedResults.cacheFile;
                 whereCacheFile = cachedResults.whereCacheFile;
+                metadata = cachedResults.metadata;
                 fromCache = !!output;
             }
 
             // If no cache or forcing refresh, run the reconcile command
             if (!output) {
                 try {
-                    // Build reconcile command with redirection to file
-                    // Use -m flag for timestamp comparison to optimize performance
-                    const reconcileCmd = `cd "${clientRoot}" && p4 reconcile -m -n > "${tempFile}"`;
+                    // If no specific inclusion folders, run on the entire client root
+                    if (inclusionFolders.length === 0) {
+                        // Build reconcile command with redirection to file
+                        // Use -m flag for timestamp comparison to optimize performance
+                        const reconcileCmd = `cd "${clientRoot}" && p4 reconcile -m -n ... > "${tempFile}"`;
 
-                    console.log("[DEBUG] Executing command:", reconcileCmd);
+                        // Log the command for debugging
+                        const fullCommand = `p4 reconcile -m -n ... (from: ${clientRoot})`;
+                        const logEntry = logDetailedP4Command(fullCommand, {
+                            type: "reconcile",
+                            clientRoot,
+                            tempFile,
+                            startTime: new Date().toISOString(),
+                        });
+                        commandLogs.push(logEntry);
 
-                    // Use execSync with a large buffer size and shell option
-                    // Remove timeout entirely to allow for large workspaces
-                    execSync(reconcileCmd, {
-                        encoding: "utf8",
-                        shell: true,
-                        maxBuffer: 100 * 1024 * 1024, // 100MB buffer
-                        // No timeout - let the command run as long as needed
-                    });
+                        console.log("[DEBUG] Executing command:", reconcileCmd);
 
-                    // Read the output from the temporary file
-                    output = fs.readFileSync(tempFile, { encoding: "utf8" });
+                        const startTime = Date.now();
 
-                    // Save the results to cache for future use
-                    if (cacheFile) {
-                        saveReconcileResultsToCache(fs, path, tempFile, cacheFile, clientRoot);
+                        // Use execSync with a large buffer size and shell option
+                        execSync(reconcileCmd, {
+                            encoding: "utf8",
+                            shell: true,
+                            maxBuffer: 100 * 1024 * 1024, // 100MB buffer
+                        });
+
+                        const endTime = Date.now();
+                        const executionTime = (endTime - startTime) / 1000; // in seconds
+
+                        // Log completion with timing information
+                        const completionLog = logDetailedP4Command(`${fullCommand} - COMPLETED`, {
+                            type: "reconcile",
+                            clientRoot,
+                            executionTime: `${executionTime}s`,
+                            status: "success",
+                        });
+                        commandLogs.push(completionLog);
+
+                        // Read the output from the temporary file
+                        output = fs.readFileSync(tempFile, { encoding: "utf8" });
+
+                        // Save the results to cache for future use
+                        if (cacheFile) {
+                            saveReconcileResultsToCache(fs, path, tempFile, cacheFile, clientRoot, inclusionFolders, false);
+                        }
+                    } else {
+                        // Run reconcile on each inclusion folder separately
+                        console.log("[DEBUG] Running reconcile on specific folders:", inclusionFolders);
+
+                        // Create or clear the cache file if it doesn't exist from a previous run
+                        if (cacheFile && (!fs.existsSync(cacheFile) || forceRefresh)) {
+                            fs.writeFileSync(cacheFile, "", { encoding: "utf8" });
+                        }
+
+                        // Run reconcile for each folder individually
+                        let combinedOutput = "";
+
+                        for (const folderPath of inclusionFolders) {
+                            try {
+                                // Use the provided path directly - it should already be absolute from the client
+                                const reconcilePath = sanitizePathForP4Command(folderPath);
+
+                                console.log("[DEBUG] Processing folder:", reconcilePath);
+
+                                // Skip if folder doesn't exist
+                                if (!fs.existsSync(reconcilePath)) {
+                                    console.log("[DEBUG] Folder doesn't exist, skipping:", reconcilePath);
+                                    const skipLog = logDetailedP4Command(`p4 reconcile -n ${reconcilePath}\\... - SKIPPED`, {
+                                        type: "reconcile",
+                                        folder: reconcilePath,
+                                        status: "skipped",
+                                        reason: "Folder does not exist",
+                                    });
+                                    commandLogs.push(skipLog);
+                                    continue;
+                                }
+
+                                // Create a temporary file for this folder's output
+                                const folderTempFile = path.join(tempDir, `p4reconcile_${Date.now()}_${path.basename(reconcilePath)}.txt`);
+
+                                // Run p4 reconcile -n directly on this folder
+                                // Don't use quotes around the path and add ... for recursive scanning
+                                const folderCmd = `p4 reconcile -n ${reconcilePath}\\... > "${folderTempFile}"`;
+
+                                // Log the command for debugging
+                                const logCommand = `p4 reconcile -n ${reconcilePath}\\...`;
+                                const startLog = logDetailedP4Command(logCommand, {
+                                    type: "reconcile",
+                                    folder: reconcilePath,
+                                    tempFile: folderTempFile,
+                                    startTime: new Date().toISOString(),
+                                });
+                                commandLogs.push(startLog);
+
+                                console.log("[DEBUG] Executing command:", folderCmd);
+
+                                const startTime = Date.now();
+
+                                execSync(folderCmd, {
+                                    encoding: "utf8",
+                                    shell: true,
+                                    maxBuffer: 100 * 1024 * 1024, // 100MB buffer
+                                });
+
+                                const endTime = Date.now();
+                                const executionTime = (endTime - startTime) / 1000; // in seconds
+
+                                // Read this folder's output
+                                const folderOutput = fs.readFileSync(folderTempFile, { encoding: "utf8" });
+                                const numLines = folderOutput.split("\n").length;
+
+                                // Log completion with timing and result information
+                                const completionLog = logDetailedP4Command(`${logCommand} - COMPLETED`, {
+                                    type: "reconcile",
+                                    folder: reconcilePath,
+                                    executionTime: `${executionTime}s`,
+                                    linesOfOutput: numLines,
+                                    outputSize: `${folderOutput.length} bytes`,
+                                    status: "success",
+                                });
+                                commandLogs.push(completionLog);
+
+                                combinedOutput += folderOutput + "\n";
+
+                                // Append to the cache file
+                                if (cacheFile) {
+                                    if (fs.existsSync(cacheFile) && fs.statSync(cacheFile).size > 0) {
+                                        // Append to existing cache file
+                                        fs.appendFileSync(cacheFile, folderOutput);
+                                        console.log("[DEBUG] Appended results for folder to cache:", folderPath);
+                                    } else {
+                                        // First folder, create the cache file
+                                        fs.writeFileSync(cacheFile, folderOutput);
+                                        console.log("[DEBUG] Created cache file with results for folder:", folderPath);
+                                    }
+
+                                    // Update metadata to track which folders we've processed
+                                    const metadataFile = path.join(path.dirname(cacheFile), `${getCacheKey(clientRoot, inclusionFolders)}_metadata.json`);
+                                    let metadata = {
+                                        timestamp: new Date().toISOString(),
+                                        clientRoot,
+                                        inclusionFolders,
+                                        processedFolders: [folderPath],
+                                    };
+
+                                    if (fs.existsSync(metadataFile)) {
+                                        try {
+                                            const existingMetadata = JSON.parse(fs.readFileSync(metadataFile, { encoding: "utf8" }));
+                                            // Keep the original timestamp
+                                            if (existingMetadata.timestamp) {
+                                                metadata.timestamp = existingMetadata.timestamp;
+                                            }
+
+                                            // Track which folders we've processed
+                                            if (existingMetadata.processedFolders) {
+                                                const existingFolders = existingMetadata.processedFolders;
+                                                // Use Array.from to avoid Set iteration issues
+                                                metadata.processedFolders = Array.from(new Set([...existingFolders, folderPath]));
+                                            }
+                                        } catch (e) {
+                                            console.error("[DEBUG] Error reading existing metadata:", e);
+                                        }
+                                    }
+
+                                    // Save updated metadata
+                                    fs.writeFileSync(metadataFile, JSON.stringify(metadata), { encoding: "utf8" });
+                                }
+
+                                // Clean up temp file
+                                try {
+                                    fs.unlinkSync(folderTempFile);
+                                } catch (e) {
+                                    console.error("[DEBUG] Error removing temp file:", e);
+                                }
+                            } catch (folderError: any) {
+                                console.error("[DEBUG] Error processing folder:", folderPath, folderError);
+
+                                // Log error - use sanitized path
+                                const sanitizedPath = sanitizePathForP4Command(folderPath);
+                                const errorLog = logDetailedP4Command(`p4 reconcile -n ${sanitizedPath}\\... - FAILED`, {
+                                    type: "reconcile",
+                                    folder: folderPath,
+                                    status: "error",
+                                    error: folderError.message || "Unknown error",
+                                });
+                                commandLogs.push(errorLog);
+                            }
+                        }
+
+                        output = combinedOutput;
                     }
                 } catch (cmdError: any) {
                     console.error("[DEBUG] P4 command error:", cmdError);
@@ -349,6 +640,7 @@ export async function GET(req: Request) {
                                 error: userError,
                                 details: details || errorMsg,
                                 files: [],
+                                commandLogs,
                             },
                             { status: 500 },
                         );
@@ -474,13 +766,29 @@ export async function GET(req: Request) {
             const originalLineCount = output.split("\n").length;
             const limitApplied = originalLineCount > files.length;
 
+            // Add debug logging for file format
+            console.log("[DEBUG] Sample file from API:", files.length > 0 ? JSON.stringify(files[0]) : "No files");
+
+            // Transform files to match ModifiedFile format if needed
+            const transformedFiles = files.map((file) => ({
+                localPath: file.localFile, // Use localFile as localPath
+                localFile: file.localFile, // Keep original property
+                depotPath: file.depotFile,
+                status: file.status,
+                action: file.type || "reconcile", // Use type as action or default to 'reconcile'
+            }));
+
+            console.log("[DEBUG] Sample transformed file:", transformedFiles.length > 0 ? JSON.stringify(transformedFiles[0]) : "No files");
+
+            // Include command logs in the response
             return NextResponse.json({
                 success: true,
-                files,
+                files: transformedFiles, // Return transformed files
                 limitApplied,
                 totalFiles: files.length,
                 fromCache,
                 cacheTime: fromCache ? new Date().toISOString() : null,
+                commandLogs,
             });
         } catch (error) {
             console.error("[DEBUG] Error in API route:", error);
