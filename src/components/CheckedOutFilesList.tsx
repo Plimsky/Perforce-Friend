@@ -289,13 +289,40 @@ export default function CheckedOutFilesList({ files, isLoading, error }: Checked
     }
   };
 
-  if (isLoading) {
+  // Create UI elements for filters and controls
+  const renderFiltersAndControls = () => {
     return (
-      <div className="p-4 text-center">
-        <div className="animate-pulse">Loading checked out files...</div>
-      </div>
+      <>
+        <div className="flex flex-col sm:flex-row justify-between mb-4 gap-2">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center">
+              <label htmlFor="filterAction" className="mr-2 text-sm text-gray-600 dark:text-gray-400">Action:</label>
+              <select
+                id="filterAction"
+                value={filterAction}
+                onChange={(e) => setFilterAction(e.target.value)}
+                className="border border-gray-300 dark:border-gray-700 rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200"
+              >
+                <option value="all">All</option>
+                <option value="edit">Edit</option>
+                <option value="add">Add</option>
+                <option value="delete">Delete</option>
+                <option value="branch">Branch</option>
+                <option value="integrate">Integrate</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <ItemsPerPageSelector
+              itemsPerPage={itemsPerPage}
+              onChange={handleItemsPerPageChange}
+              options={[10, 20, 50, 100]}
+            />
+          </div>
+        </div>
+      </>
     );
-  }
+  };
 
   if (error) {
     return (
@@ -305,194 +332,141 @@ export default function CheckedOutFilesList({ files, isLoading, error }: Checked
     );
   }
 
-  if (files.length === 0) {
+  // For empty files list
+  if (files.length === 0 && !isLoading) {
     return (
-      <div className="p-4 text-center text-gray-600 dark:text-gray-400">
-        No files are currently checked out in this workspace.
+      <div className="w-full">
+        {renderFiltersAndControls()}
+        <div className="p-4 text-center text-gray-600 dark:text-gray-400">
+          No files are currently checked out in this workspace.
+        </div>
       </div>
     );
   }
 
   return (
     <div className="w-full">
-      <div className="flex flex-col sm:flex-row justify-between mb-4 gap-2">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center">
-            <label htmlFor="action-filter" className="mr-2 text-sm font-medium text-gray-700 dark:text-gray-300">
-              Filter by action:
-            </label>
-            <select
-              id="action-filter"
-              value={filterAction}
-              onChange={(e) => setFilterAction(e.target.value)}
-              className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm py-1 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-sm"
-            >
-              <option value="all">All</option>
-              {uniqueActions.map(action => (
-                <option key={action} value={action}>{action}</option>
-              ))}
-            </select>
-          </div>
+      {renderFiltersAndControls()}
+
+      {isLoading ? (
+        <div className="p-4 text-center border rounded bg-gray-50 dark:bg-gray-800">
+          <div className="animate-pulse">Loading checked out files...</div>
         </div>
-      </div>
+      ) : (
+        <>
+          <div className="overflow-x-auto border rounded-lg dark:border-gray-700">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-800">
+                <tr>
+                  <th
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
+                    onClick={() => toggleSort('depotFile')}
+                  >
+                    Depot File {getSortIndicator('depotFile')}
+                  </th>
+                  <th
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
+                    onClick={() => toggleSort('action')}
+                  >
+                    Action {getSortIndicator('action')}
+                  </th>
+                  <th
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
+                    onClick={() => toggleSort('rev')}
+                  >
+                    Rev {getSortIndicator('rev')}
+                  </th>
+                  <th
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer"
+                    onClick={() => toggleSort('clientFile')}
+                  >
+                    Local File {getSortIndicator('clientFile')}
+                  </th>
+                  <th
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                  >
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                {paginatedFiles.map((file, index) => (
+                  <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                          {getFileName(file.depotFile)}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {formatDepotPath(file.depotFile)}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${getActionColor(file.action)}`}>
+                        {file.action}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      {file.rev}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                      <div className="flex items-center group">
+                        <span className="truncate max-w-xs" title={file.clientFile}>
+                          {formatLocalPath(file.clientFile || '')}
+                        </span>
+                        {file.clientFile && (
+                          <button
+                            onClick={(e) => copyPathToClipboard(file.clientFile || '', e)}
+                            className="ml-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Copy path to clipboard"
+                          >
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-2">
+                        {isFileOpenable(file) ? (
+                          <button
+                            onClick={() => handleOpenFile(file)}
+                            className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                            title="Open file"
+                          >
+                            Open
+                          </button>
+                        ) : (
+                          !file.clientFile && (
+                            <button
+                              onClick={() => handleResolveFilePath(file)}
+                              className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                              title="Resolve local path"
+                            >
+                              Resolve Path
+                            </button>
+                          )
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 table-fixed">
-          <thead className="bg-gray-50 dark:bg-gray-800">
-            <tr>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 w-72"
-                onClick={() => toggleSort('depotFile')}
-              >
-                <div className="flex items-center">
-                  File
-                  {getSortIndicator('depotFile')}
-                </div>
-              </th>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 w-28"
-                onClick={() => toggleSort('action')}
-              >
-                <div className="flex items-center">
-                  Action
-                  {getSortIndicator('action')}
-                </div>
-              </th>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 w-24"
-                onClick={() => toggleSort('rev')}
-              >
-                <div className="flex items-center">
-                  Revision
-                  {getSortIndicator('rev')}
-                </div>
-              </th>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 w-36"
-                onClick={() => toggleSort('change')}
-              >
-                <div className="flex items-center">
-                  Changelist
-                  {getSortIndicator('change')}
-                </div>
-              </th>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 w-80"
-                onClick={() => toggleSort('clientFile')}
-              >
-                <div className="flex items-center">
-                  Local Path
-                  {getSortIndicator('clientFile')}
-                </div>
-              </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider w-40">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
-            {paginatedFiles.map((file, index) => (
-              <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium text-gray-900 dark:text-white mb-1">
-                      {getFileName(file.depotFile)}
-                    </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {formatDepotPath(file.depotFile)}
-                    </span>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getActionColor(file.action)}`}>
-                    {file.action}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                  {file.rev}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                  {file.change}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  <div className="flex items-center group">
-                    <span className="truncate max-w-xs" title={derivePossibleLocalPath(file, true)}>
-                      {derivePossibleLocalPath(file)}
-                    </span>
-                    {file.clientFile && (
-                      <button
-                        onClick={(e) => copyPathToClipboard(file.clientFile, e)}
-                        className="ml-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity"
-                        title="Copy full path"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path>
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm">
-                  {isFileOpenable(file) ? (
-                    <button
-                      onClick={() => handleOpenFile(file)}
-                      className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 dark:border-gray-600 shadow-sm text-xs font-medium rounded text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
-                      title="Open file in default editor"
-                    >
-                      <svg className="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
-                      </svg>
-                      Open
-                    </button>
-                  ) : (
-                    <div className="flex space-x-2">
-                      <span className="text-gray-400 dark:text-gray-600 text-xs italic">Path unavailable</span>
-                      <button
-                        onClick={() => handleResolveFilePath(file)}
-                        className="inline-flex items-center px-2 py-1 border border-gray-300 dark:border-gray-600 shadow-sm text-xs font-medium rounded text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900 hover:bg-blue-100 dark:hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-                        title="Try to resolve the local path for this file"
-                      >
-                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                        </svg>
-                        Resolve
-                      </button>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-        Showing {paginatedFiles.length > 0 ?
-          `${(currentPage - 1) * itemsPerPage + 1}-${Math.min(currentPage * itemsPerPage, sortedFiles.length)} of ${sortedFiles.length}` :
-          `0 of ${sortedFiles.length}`
-        } filtered files
-        {filterAction !== 'all' && ` (filtered by action: ${filterAction})`}
-      </div>
-
-      {/* Pagination controls */}
-      <div className="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
-        <ItemsPerPageSelector
-          itemsPerPage={itemsPerPage}
-          onChange={handleItemsPerPageChange}
-          options={[10, 20, 50, 100, 200]}
-        />
-
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={handlePageChange}
-        />
-      </div>
+          {/* Pagination */}
+          <div className="mt-4">
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={handlePageChange}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 } 
