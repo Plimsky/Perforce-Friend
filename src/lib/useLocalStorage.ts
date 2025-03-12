@@ -1,28 +1,33 @@
+"use client";
+
 import { useState, useEffect } from "react";
 
-function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((val: T) => T)) => void] {
+/**
+ * A hook that provides persistent storage using localStorage
+ * with automatic serialization/deserialization of values
+ *
+ * @param key The localStorage key to use for storing the value
+ * @param initialValue The initial value to use if no value is found in localStorage
+ * @returns A stateful value and a function to update it
+ */
+export function useLocalStorage<T>(key: string, initialValue: T) {
     // Get from local storage then parse stored json or return initialValue
-    const readValue = (): T => {
-        // Prevent build error "window is undefined" but keep working
-        if (typeof window === "undefined") {
-            return initialValue;
-        }
-
+    const [storedValue, setStoredValue] = useState<T>(() => {
         try {
-            const item = window.localStorage.getItem(key);
-            console.log(`[useLocalStorage] Reading key ${key}:`, item);
+            // Get from local storage by key
+            if (typeof window !== "undefined") {
+                const item = window.localStorage.getItem(key);
+                console.log(`[useLocalStorage] Reading key ${key}:`, item);
 
-            // Parse stored json or if none return initialValue
-            return item ? JSON.parse(item) : initialValue;
+                // Parse stored json or if none return initialValue
+                return item ? JSON.parse(item) : initialValue;
+            }
+            return initialValue;
         } catch (error) {
             console.warn(`[useLocalStorage] Error reading localStorage key "${key}":`, error);
             return initialValue;
         }
-    };
-
-    // State to store our value
-    // Pass initial state function to useState so logic is only executed once
-    const [storedValue, setStoredValue] = useState<T>(readValue);
+    });
 
     // Return a wrapped version of useState's setter function that persists the new value to localStorage
     const setValue = (value: T | ((val: T) => T)) => {
@@ -63,7 +68,8 @@ function useLocalStorage<T>(key: string, initialValue: T): [T, (value: T | ((val
         }
     }, [key]);
 
-    return [storedValue, setValue];
+    return [storedValue, setValue] as const;
 }
 
+// Default export for backward compatibility
 export default useLocalStorage;
