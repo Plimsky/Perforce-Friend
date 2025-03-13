@@ -1,0 +1,56 @@
+/* Styling for react-arborist tree component */
+
+.react-arborist {
+    overflow: auto;
+    font-family: inherit;
+    color: inherit;
+}
+
+.react-arborist__node-content {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.react-arborist__node--focused {
+    background-color: rgba(59, 130, 246, 0.1);
+}
+
+.react-arborist__node--selected {
+    background-color: rgba(59, 130, 246, 0.2);
+}
+
+/* Custom tree node styling */
+.tree-node {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 3px 5px;
+    border-radius: 4px;
+}
+
+.tree-node:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+.dark .tree-node:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.tree-node__icon {
+    margin-right: 4px;
+    display: flex;
+    align-items: center;
+}
+
+.tree-node__label {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tree-node__checkbox {
+    margin-left: 4px;
+}

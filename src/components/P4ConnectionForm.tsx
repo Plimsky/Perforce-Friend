@@ -5,12 +5,13 @@ type P4ConnectionFormProps = {
   isLoading?: boolean;
 };
 
-export type P4Config = {
+export interface P4Config {
   port: string;
   user: string;
   password: string;
   client?: string;
-};
+  clientRoot?: string;
+}
 
 export default function P4ConnectionForm({ onConnect, isLoading = false }: P4ConnectionFormProps) {
   const [config, setConfig] = useState<P4Config>({

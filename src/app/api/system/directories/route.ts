@@ -3,6 +3,7 @@ import { promises as fs } from "fs";
 import path from "path";
 import { exec } from "child_process";
 import { promisify } from "util";
+import { readdir, stat } from "fs/promises";
 
 const execAsync = promisify(exec);
 
@@ -184,5 +185,71 @@ export async function GET(req: NextRequest) {
     } catch (error) {
         console.error("Error in directories API:", error);
         return NextResponse.json({ error: "Failed to list directories", details: error instanceof Error ? error.message : String(error) }, { status: 500 });
+    }
+}
+
+export async function POST(request: NextRequest) {
+    try {
+        const { path: dirPath } = await request.json();
+
+        if (!dirPath) {
+            return NextResponse.json(
+                {
+                    success: false,
+                    error: "No path provided",
+                },
+                { status: 400 },
+            );
+        }
+
+        // Check if path exists
+        try {
+            const stats = await stat(dirPath);
+            if (!stats.isDirectory()) {
+                return NextResponse.json(
+                    {
+                        success: false,
+                        error: "Path is not a directory",
+                    },
+                    { status: 400 },
+                );
+            }
+        } catch (error) {
+            return NextResponse.json(
+                {
+                    success: false,
+                    error: "Path does not exist",
+                },
+                { status: 404 },
+            );
+        }
+
+        // Get directory items
+        const items = await readdir(dirPath, { withFileTypes: true });
+
+        // Filter to only directories
+        const directories = await Promise.all(
+            items
+                .filter((item) => item.isDirectory())
+                .map(async (item) => {
+                    const fullPath = path.join(dirPath, item.name);
+                    // Normalize to forward slashes for consistency
+                    return fullPath.replace(/\\/g, "/");
+                }),
+        );
+
+        return NextResponse.json({
+            success: true,
+            directories,
+        });
+    } catch (error) {
+        console.error("Error listing directories:", error);
+        return NextResponse.json(
+            {
+                success: false,
+                error: "Failed to list directories",
+            },
+            { status: 500 },
+        );
     }
 }

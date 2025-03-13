@@ -14,12 +14,20 @@ const P4_COMMAND_LOGS_KEY = "perforce_command_logs";
 const MAX_COMMAND_LOGS = 100;
 
 /**
+ * Extended connection details type that includes client root for storage
+ */
+interface StoredConnectionData extends Partial<P4Config> {
+    _clientRoot?: string;
+}
+
+/**
  * Service for handling Perforce-related operations
  */
 export class P4Service {
     private static instance: P4Service;
     private isConnected = false;
     private connectionDetails: Partial<P4Config> = {};
+    private clientRoot: string = "";
 
     private constructor() {
         // Try to restore connection from localStorage on initialization
@@ -64,6 +72,12 @@ export class P4Service {
                 client: config.client || data.client,
             };
 
+            // Store the client root if received from API
+            if (data.clientRoot) {
+                this.clientRoot = data.clientRoot;
+                console.log("[P4Service] Client root set from API:", this.clientRoot);
+            }
+
             // Save connection details to localStorage and credentials to sessionStorage
             this.saveConnectionToStorage();
             this.saveCredentialsToSession(config);
@@ -71,7 +85,7 @@ export class P4Service {
             return {
                 success: true,
                 message: data.message || "Connected to Perforce server",
-                clientRoot: data.clientRoot, // Pass through the client root from the API
+                clientRoot: this.clientRoot, // Use instance variable
             };
         } catch (error) {
             this.isConnected = false;
@@ -183,7 +197,7 @@ export class P4Service {
     /**
      * Get list of files that are modified but not checked out
      */
-    public async getModifiedFiles(): Promise<{
+    public async getModifiedFiles(skipScan: boolean = true): Promise<{
         success: boolean;
         message: string;
         files?: P4ModifiedFile[];
@@ -199,6 +213,11 @@ export class P4Service {
             // Create URL with maxFiles parameter
             const url = new URL("/api/p4/files/modified", window.location.origin);
             url.searchParams.set("maxFiles", "1000");
+
+            // Set skipScan parameter to prevent automatic reconcile
+            if (skipScan) {
+                url.searchParams.set("skipScan", "true");
+            }
 
             const response = await fetch(url.toString(), {
                 method: "GET",
@@ -295,7 +314,12 @@ export class P4Service {
     private saveConnectionToStorage(): void {
         try {
             if (typeof window !== "undefined") {
-                localStorage.setItem(P4_CONNECTION_KEY, JSON.stringify(this.connectionDetails));
+                // Include client root in connection details for persistence
+                const dataToStore: StoredConnectionData = {
+                    ...this.connectionDetails,
+                    _clientRoot: this.clientRoot,
+                };
+                localStorage.setItem(P4_CONNECTION_KEY, JSON.stringify(dataToStore));
             }
         } catch (error) {
             console.error("Failed to save connection to localStorage:", error);
@@ -349,12 +373,12 @@ export class P4Service {
     /**
      * Get stored connection from localStorage
      */
-    private getStoredConnection(): Partial<P4Config> | null {
+    private getStoredConnection(): StoredConnectionData | null {
         try {
             if (typeof window !== "undefined") {
                 const storedData = localStorage.getItem(P4_CONNECTION_KEY);
                 if (storedData) {
-                    return JSON.parse(storedData) as Partial<P4Config>;
+                    return JSON.parse(storedData) as StoredConnectionData;
                 }
             }
             return null;
@@ -382,9 +406,22 @@ export class P4Service {
      */
     private restoreConnectionFromStorage(): void {
         const storedConnection = this.getStoredConnection();
-        if (storedConnection && storedConnection.port && storedConnection.user) {
-            this.isConnected = true;
-            this.connectionDetails = storedConnection;
+        if (storedConnection) {
+            if (storedConnection.port && storedConnection.user) {
+                this.isConnected = true;
+
+                // Extract and remove client root from connection details
+                if (storedConnection._clientRoot) {
+                    this.clientRoot = storedConnection._clientRoot;
+                    // Create a copy without the _clientRoot property
+                    const { _clientRoot, ...connectionDetails } = storedConnection;
+                    this.connectionDetails = connectionDetails;
+                } else {
+                    this.connectionDetails = storedConnection;
+                }
+
+                console.log("[P4Service] Connection restored from storage, client root:", this.clientRoot);
+            }
         }
     }
 
@@ -434,5 +471,25 @@ export class P4Service {
      */
     public clearCommandLogs(): void {
         localStorage.removeItem(P4_COMMAND_LOGS_KEY);
+    }
+
+    /**
+     * Get the client root path
+     */
+    public getClientRoot(): string {
+        return this.clientRoot;
+    }
+
+    /**
+     * Set the client root path
+     */
+    public setClientRoot(clientRoot: string): void {
+        if (clientRoot && clientRoot.trim() !== "") {
+            console.log("[P4Service] Client root set:", clientRoot);
+            this.clientRoot = clientRoot;
+
+            // Update connection details in storage
+            this.saveConnectionToStorage();
+        }
     }
 }

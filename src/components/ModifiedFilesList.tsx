@@ -455,24 +455,22 @@ export default function ModifiedFilesList({
     // Apply pagination to sorted files
     const paginatedFiles = sortedFiles.slice(indexOfFirstFile, indexOfLastFile);
 
-    // Only show the error screen for critical errors, not warnings
-    if (error && !isWarning) {
-        return (
-            <div className="p-4 text-red-500 border border-red-300 rounded bg-red-50 dark:bg-red-900/20 dark:border-red-800">
-                <h3 className="font-semibold mb-2">Error loading modified files</h3>
-                <p>{error}</p>
-                <button
-                    onClick={onRefresh}
-                    className="mt-2 px-4 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                >
-                    Retry
-                </button>
-            </div>
-        );
-    }
-
     return (
         <div className="space-y-4">
+            {/* Display error if present (non-warning) */}
+            {error && !isWarning && (
+                <div className="p-4 mb-4 text-red-500 border border-red-300 rounded bg-red-50 dark:bg-red-900/20 dark:border-red-800">
+                    <h3 className="font-semibold mb-2">Error loading modified files</h3>
+                    <p>{error}</p>
+                    <button
+                        onClick={onRefresh}
+                        className="mt-2 px-4 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                    >
+                        Retry
+                    </button>
+                </div>
+            )}
+
             {/* Display warning if present */}
             {isWarning && (
                 <div className="p-3 mb-4 text-yellow-800 border border-yellow-300 rounded bg-yellow-50 dark:bg-yellow-900/20 dark:border-yellow-800 dark:text-yellow-200">

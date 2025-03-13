@@ -12,6 +12,7 @@ import { useLocalStorage } from '@/lib/useLocalStorage';
 import { initP4CommandLogger, logP4CommandFromAPI } from '../lib/p4CommandLogger';
 import path from 'path-browserify';
 import { ModifiedFile } from '@/types/modifiedFiles';
+import AppLayout from '@/components/AppLayout';
 
 // Constants for localStorage keys
 const INCLUSION_FOLDERS_KEY = 'perforceFriend_inclusionFolders';
@@ -154,14 +155,20 @@ export default function Home() {
     }
   }, [inclusionFoldersString]);
 
-  // Initial fetch on page load, but only if we have inclusion folders
+  // Update the Initial fetch useEffect to not run automatically
   useEffect(() => {
+    // Disable the automatic scan on page load - the user will use the Scan button instead
     if (runScanOnLoad) {
-      fetchModifiedFiles();
+      // Instead of fetching files, just reset the flag
       setRunScanOnLoad(false);
+
+      // Only set an empty array without running the command
+      setModifiedFiles([]);
+      setIsLoadingModifiedFiles(false);
     }
   }, [runScanOnLoad]);
 
+  // Update the handleConnect function to not auto-run the scan
   const handleConnect = async (config: P4Config) => {
     try {
       setIsConnecting(true);
@@ -189,11 +196,11 @@ export default function Home() {
         // Fetch checked out files after successful connection
         await fetchCheckedOutFiles();
 
-        // Fetch modified files if enabled (but don't auto-run full scan)
+        // Don't automatically run the fetch modified files on connect
+        // Just initialize it with an empty array
         if (showModifiedFiles) {
-          // Only auto-run if inclusion folders are defined, or we've already done an initial scan
-          const shouldAutoRun = inclusionFolders.length > 0 || hasRunInitialScan;
-          await fetchModifiedFiles(false, shouldAutoRun);
+          setModifiedFiles([]);
+          setIsLoadingModifiedFiles(false);
         }
       } else {
         setConnectionStatus({
@@ -271,109 +278,62 @@ export default function Home() {
         setHasRunInitialScan(true);
       }
 
+      // Only use skipScan=false when forceRun is true to ensure the command only runs when requested
+      const skipScan = !forceRun;
+
       const p4Service = P4Service.getInstance();
 
-      // Build URL with optional parameters
-      let url = '/api/p4/files/modified';
-      const params = new URLSearchParams();
+      if (p4Service) {
+        const result = await p4Service.getModifiedFiles(skipScan);
 
-      if (p4ClientRoot) {
-        params.append('clientRoot', p4ClientRoot);
-      }
+        if (result.success && result.files) {
+          setModifiedFiles(result.files);
+          console.log("Received modified files from API:", result.files.length);
+          console.log("First few files:", result.files.slice(0, 3));
 
-      if (maxFiles) {
-        params.append('maxFiles', maxFiles.toString());
-      }
-
-      if (forceRefresh) {
-        params.append('forceRefresh', 'true');
-      }
-
-      // Add inclusion folders if specified
-      if (inclusionFolders.length > 0) {
-        params.append('inclusionFolders', inclusionFolders.join(','));
-      }
-
-      const queryString = params.toString();
-      if (queryString) {
-        url += `?${queryString}`;
-      }
-
-      // Call the API
-      const response = await fetch(`${url}?${params.toString()}`);
-      const data = await response.json();
-
-      // Check for command logs in the response and log them
-      if (data.commandLogs && Array.isArray(data.commandLogs)) {
-        // Log each command for visibility - pass the full command with details
-        data.commandLogs.forEach((log: any) => {
-          // Only log completed commands or errors/skipped to avoid cluttering the log
-          if (log.command && (log.command.includes('COMPLETED') ||
-            log.status === 'error' ||
-            log.status === 'skipped')) {
-            // Use the formatted command string with all details included
-            logP4CommandFromAPI(log.command);
+          // Check if data is from cache
+          if ('fromCache' in result && result.fromCache) {
+            setUsingCachedData(true);
+            // Ensure cacheTime is a string or null
+            setCacheTime('cacheTime' in result && typeof result.cacheTime === 'string' ? result.cacheTime : null);
           }
-        });
-      } else {
-        // Fallback to simple command logging if detailed logs aren't available
-        let folderInfo = '';
-        if (inclusionFolders.length > 0) {
-          folderInfo = ` (folders: ${inclusionFolders.join(', ')})`;
-        }
-        logP4CommandFromAPI(`p4 reconcile -n${forceRefresh ? ' (force refresh)' : ''}${folderInfo}`);
-      }
 
-      if (!response.ok) {
-        // Check if the error is because of workspace path issues
-        if (data.error && (data.error.includes('workspace') || data.error.includes('client'))) {
-          setShowClientRootInput(true);
-
-          // If we got a client root path in the error details, pre-fill it
-          if (data.details && data.details.includes('located at:')) {
-            const pathMatch = data.details.match(/located at: (.+)$/);
-            if (pathMatch && pathMatch[1] && !p4ClientRoot) {
-              setP4ClientRoot(pathMatch[1]);
-            }
+          // Show warning if limit was applied
+          if ('limitApplied' in result && result.limitApplied) {
+            setModifiedFilesError(`Note: Only showing ${result.files.length} files. There may be more modified files.`);
+          } else {
+            setModifiedFilesError(undefined);
           }
-        } else if (data.error && data.error.includes('buffer')) {
-          // Handle buffer overflow errors
-          setShowClientRootInput(true);
-          setModifiedFilesError(`${data.error}. Try reducing the number of files.`);
-        } else if (data.error && data.error.includes('timed out')) {
-          // Handle timeout errors
-          setShowClientRootInput(true);
-          setModifiedFilesError(`${data.error}. Please try again or use a more specific folder path.`);
-        }
-
-        throw new Error(data.error || 'Failed to get modified files');
-      }
-
-      if (data.success && data.files) {
-        console.log("Received modified files from API:", data.files.length);
-        console.log("First few files:", data.files.slice(0, 3));
-        setModifiedFiles(data.files);
-
-        // Check if data is from cache
-        if (data.fromCache) {
-          setUsingCachedData(true);
-          setCacheTime(data.cacheTime);
-        }
-
-        // Show warning if limit was applied
-        if (data.limitApplied) {
-          setModifiedFilesError(`Note: Only showing ${data.files.length} files. There may be more modified files.`);
         } else {
-          setModifiedFilesError(undefined);
+          setModifiedFilesError(result.message || 'No data returned');
+          setModifiedFiles([]);
         }
-      } else {
-        setModifiedFilesError(data.message || 'No data returned');
-        setModifiedFiles([]);
-      }
 
-      // Show warning if provided in the response
-      if (data.warning) {
-        setModifiedFilesError(data.warning);
+        // Show warning if provided in the response
+        if ('warning' in result && result.warning && typeof result.warning === 'string') {
+          setModifiedFilesError(result.warning);
+        }
+
+        // Check for command logs in the response and log them
+        if ('commandLogs' in result && Array.isArray(result.commandLogs)) {
+          // Log each command for visibility - pass the full command with details
+          result.commandLogs.forEach((log: any) => {
+            // Only log completed commands or errors/skipped to avoid cluttering the log
+            if (log.command && (log.command.includes('COMPLETED') ||
+              log.status === 'error' ||
+              log.status === 'skipped')) {
+              // Use the formatted command string with all details included
+              logP4CommandFromAPI(log.command);
+            }
+          });
+        } else {
+          // Fallback to simple command logging if detailed logs aren't available
+          let folderInfo = '';
+          if (inclusionFolders.length > 0) {
+            folderInfo = ` (folders: ${inclusionFolders.join(', ')})`;
+          }
+          logP4CommandFromAPI(`p4 reconcile -n${forceRefresh ? ' (force refresh)' : ''}${folderInfo}`);
+        }
       }
     } catch (error) {
       console.error('Error fetching modified files:', error);
@@ -381,19 +341,19 @@ export default function Home() {
       setModifiedFiles([]);
     } finally {
       setIsLoadingModifiedFiles(false);
-      setReconcileStartTime(null);
     }
   };
 
+  // Update the handleToggleModifiedFiles function to not auto-run the scan
   const handleToggleModifiedFiles = async () => {
     const newValue = !showModifiedFiles;
     setShowModifiedFiles(newValue);
 
-    // If turning on modified files and we have a connection, fetch them
+    // If turning on modified files, don't auto-run the scan
+    // Just initialize with an empty array
     if (newValue && connectionStatus.isConnected) {
-      // Only auto-run if inclusion folders are defined, or we've already done an initial scan
-      const shouldAutoRun = inclusionFolders.length > 0 || hasRunInitialScan;
-      await fetchModifiedFiles(false, shouldAutoRun);
+      setModifiedFiles([]);
+      setIsLoadingModifiedFiles(false);
     }
   };
 
@@ -419,10 +379,12 @@ export default function Home() {
   };
 
   const handleForceRefreshModifiedFiles = () => {
+    // Force refresh with scan
     fetchModifiedFiles(true, true);
   };
 
   const handleScanModifiedFiles = () => {
+    // Set forceRun to true to execute the scan command
     fetchModifiedFiles(false, true);
   };
 
@@ -519,397 +481,76 @@ export default function Home() {
     setInclusionFoldersString(folders.join(','));
   };
 
+  // Check connection on page load
+  useEffect(() => {
+    checkConnection();
+  }, []);
+
+  // Check connection to Perforce server
+  const checkConnection = async () => {
+    setIsConnecting(true);
+    try {
+      const p4Service = P4Service.getInstance();
+      const status = p4Service.getConnectionStatus();
+
+      if (!status.isConnected) {
+        // Try to reconnect
+        await p4Service.reconnect();
+        // Get updated status
+        const updatedStatus = p4Service.getConnectionStatus();
+        setConnectionStatus({
+          isConnected: updatedStatus.isConnected,
+          message: updatedStatus.isConnected
+            ? 'Connected to Perforce server'
+            : 'Not connected to Perforce server',
+          details: updatedStatus.details
+        });
+      } else {
+        setConnectionStatus({
+          isConnected: true,
+          message: 'Connected to Perforce server',
+          details: status.details
+        });
+      }
+    } catch (error) {
+      setConnectionStatus({
+        isConnected: false,
+        message: 'Failed to connect to Perforce server',
+        details: {}
+      });
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
   return (
-    <main className="min-h-screen p-8">
-      <div className="max-w-7xl mx-auto bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Perforce Friend
-          </h1>
-
-          <div className="flex space-x-3">
-            {connectionStatus.isConnected && (
-              <>
-                <button
-                  onClick={() => setShowCommandLogs(true)}
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md 
-                          text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                  Command Logs
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md 
-                      text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-                >
-                  Logout
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        <p className="text-gray-600 dark:text-gray-300 mb-6">
-          A modern web client for Perforce version control
-        </p>
-
-        <div className="mb-8 p-4 border border-gray-200 dark:border-gray-700 rounded-md">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
-              Server Status
-            </h2>
-            <div className={`px-3 py-1 rounded-full text-sm font-medium ${connectionStatus.isConnected
-              ? 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100'
-              : 'bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100'
-              }`}>
-              {connectionStatus.isConnected ? 'Connected' : 'Disconnected'}
-            </div>
-          </div>
-
-          <p className="text-gray-600 dark:text-gray-300 mb-2">
-            {connectionStatus.message}
-          </p>
-
-          {connectionStatus.isConnected && connectionStatus.details && (
-            <div className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-              <p>Server: {connectionStatus.details.port}</p>
-              <p>User: {connectionStatus.details.user}</p>
-              {connectionStatus.details.client && (
-                <p>Workspace: {connectionStatus.details.client}</p>
-              )}
-            </div>
-          )}
-        </div>
-
-        {!connectionStatus.isConnected && (
-          <div>
-            <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">
-              Connect to Perforce
-            </h2>
-            <P4ConnectionForm onConnect={handleConnect} isLoading={isConnecting} />
-          </div>
-        )}
-
-        {connectionStatus.isConnected && (
-          <div className="space-y-6">
-            <div className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:justify-between sm:items-center">
-              <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
-                Workspace Files
-              </h2>
-              <div className="flex space-x-3 items-center">
-                <button
-                  onClick={handleRefreshFiles}
-                  disabled={isLoadingFiles || isLoadingModifiedFiles}
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md 
-                        text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 
-                        focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isLoadingFiles || isLoadingModifiedFiles ? 'Refreshing...' : 'Refresh'}
-                </button>
-                <label className="inline-flex items-center space-x-2 text-sm text-gray-700 dark:text-gray-300">
-                  <input
-                    type="checkbox"
-                    checked={showModifiedFiles}
-                    onChange={handleToggleModifiedFiles}
-                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                  />
-                  <span>Show Modified Files</span>
-                </label>
-              </div>
-            </div>
-
-            {/* Client root input for modified files */}
-            {showModifiedFiles && showClientRootInput && (
-              <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-md bg-yellow-50 dark:bg-yellow-900">
-                <h3 className="text-md font-medium text-yellow-900 dark:text-yellow-100 mb-2">
-                  Perforce Workspace Configuration
-                </h3>
-                <p className="text-sm text-yellow-800 dark:text-yellow-200 mb-3">
-                  Your current directory is not in your Perforce workspace or there were too many files to process. Please specify:
-                </p>
-
-                <div className="flex flex-col space-y-3">
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <div className="flex-1">
-                      <label htmlFor="clientRoot" className="block text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-1">
-                        Workspace Root Path:
-                      </label>
-                      <input
-                        id="clientRoot"
-                        type="text"
-                        value={p4ClientRoot}
-                        onChange={handleClientRootChange}
-                        placeholder="e.g., C:\path\to\workspace or /path/to/workspace"
-                        className="w-full rounded-md border border-gray-300 dark:border-gray-700 py-2 px-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                      />
-                    </div>
-
-                    <div className="sm:w-32">
-                      <label htmlFor="maxFiles" className="block text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-1">
-                        Max Files:
-                      </label>
-                      <input
-                        id="maxFiles"
-                        type="number"
-                        min="10"
-                        max="5000"
-                        value={maxFiles}
-                        onChange={handleMaxFilesChange}
-                        className="w-full rounded-md border border-gray-300 dark:border-gray-700 py-2 px-3 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end">
-                    <button
-                      onClick={() => fetchModifiedFiles()}
-                      disabled={isLoadingModifiedFiles || !p4ClientRoot}
-                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md 
-                                text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 
-                                focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isLoadingModifiedFiles ? 'Loading...' : 'Apply'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-md">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                Checked Out Files
-              </h3>
-              <CheckedOutFilesList
-                files={checkedOutFiles}
-                isLoading={isLoadingFiles}
-                error={filesError}
-              />
-            </div>
-
-            {showModifiedFiles && (
-              <div className="mt-8">
-                {/* Modified files panel header */}
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                    Modified Files {isLoadingModifiedFiles && !usingCachedData && reconcileStartTime && (
-                      <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">
-                        (Running p4 reconcile: {elapsedTime}s)
-                      </span>
-                    )}
-                  </h2>
-
-                  <div className="flex space-x-2">
-                    {!inclusionFolders.length && !hasRunInitialScan ? (
-                      <button
-                        onClick={handleScanModifiedFiles}
-                        className={`inline-flex items-center px-3 py-1.5 border border-transparent shadow-sm text-sm font-medium rounded ${inclusionFolders.length
-                          ? 'text-white bg-green-600 hover:bg-green-700 ring-2 ring-green-300 dark:ring-green-500 ring-offset-2'
-                          : 'text-white bg-green-600 hover:bg-green-700'
-                          } focus:outline-none`}
-                        disabled={isLoadingModifiedFiles}
-                      >
-                        {isLoadingModifiedFiles ? 'Scanning...' : inclusionFolders.length ? 'Scan Selected Folders' : 'Scan Workspace'}
-                      </button>
-                    ) : (
-                      <>
-                        <button
-                          onClick={handleScanModifiedFiles}
-                          className={`inline-flex items-center px-3 py-1.5 border border-transparent shadow-sm text-sm font-medium rounded ${inclusionFolders.length
-                            ? 'text-white bg-green-600 hover:bg-green-700 ring-2 ring-green-300 dark:ring-green-500 ring-offset-2'
-                            : 'text-white bg-green-600 hover:bg-green-700'
-                            } focus:outline-none`}
-                          disabled={isLoadingModifiedFiles}
-                        >
-                          {isLoadingModifiedFiles ? 'Scanning...' : inclusionFolders.length ? 'Scan Selected Folders' : 'Scan Workspace'}
-                        </button>
-                        <button
-                          onClick={handleForceRefreshModifiedFiles}
-                          className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none"
-                          disabled={isLoadingModifiedFiles}
-                        >
-                          {isLoadingModifiedFiles ? 'Refreshing...' : 'Refresh'}
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </div>
-
-                {/* Instructions when no scan has been performed */}
-                {!inclusionFolders.length && !hasRunInitialScan && !isLoadingModifiedFiles && (
-                  <div className="mb-4 p-4 border border-blue-200 dark:border-blue-800 rounded-md bg-blue-50 dark:bg-blue-900">
-                    <h3 className="text-md font-medium text-blue-900 dark:text-blue-100 mb-2">
-                      Workspace Scan Required
-                    </h3>
-                    <p className="text-sm text-blue-800 dark:text-blue-200 mb-3">
-                      A full workspace scan with p4 reconcile is required to detect modified files. This operation can be time-consuming for large workspaces.
-                    </p>
-                    <p className="text-sm text-blue-800 dark:text-blue-200 mb-3">
-                      You have two options:
-                    </p>
-                    <ul className="list-disc list-inside text-sm text-blue-800 dark:text-blue-200 mb-3">
-                      <li className="mb-1">Click the "Scan Workspace" button to scan your entire workspace</li>
-                      <li>Specify individual folders to scan instead (faster) using the "Specify Folders" button</li>
-                    </ul>
-                    <div className="flex justify-end">
-                      <button
-                        onClick={handleScanModifiedFiles}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
-                      >
-                        Scan Now
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Inclusion folders UI */}
-                {showInclusionFolders && (
-                  <div className="mb-4 p-4 border border-blue-200 dark:border-blue-800 rounded-md bg-blue-50 dark:bg-blue-900">
-                    <h3 className="text-md font-medium text-blue-900 dark:text-blue-100 mb-2">
-                      Specify folders for p4 reconcile
-                    </h3>
-                    <p className="text-sm text-blue-800 dark:text-blue-200 mb-3">
-                      Running p4 reconcile on specific folders can significantly improve performance.
-                      Leave empty to run on the entire workspace.
-                    </p>
-
-                    <div className="mb-3">
-                      {p4ClientRoot ? (
-                        <div className="flex flex-col space-y-2">
-                          <DirectoryBrowser
-                            value={newInclusionFolder}
-                            onChange={setNewInclusionFolder}
-                            clientRoot={p4ClientRoot}
-                            placeholder="Browse or enter folder path"
-                            onSelect={handleAddInclusionFolder}
-                            className="flex-1"
-                            inputClassName="bg-white text-gray-900 border-gray-300"
-                          />
-                          <div className="text-xs text-blue-700 dark:text-blue-300">
-                            Type to search directories recursively. Click a folder to add it for scanning.
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col space-y-2">
-                          <DirectoryBrowser
-                            value={newInclusionFolder}
-                            onChange={setNewInclusionFolder}
-                            clientRoot=""
-                            placeholder="Enter folder path (relative to workspace root)"
-                            onSelect={handleAddInclusionFolder}
-                            className="flex-1"
-                            inputClassName="bg-white text-gray-900 border-gray-300"
-                          />
-                          <div className="text-xs text-yellow-600 dark:text-yellow-400">
-                            Note: For better directory browsing, set your client root in the settings above.
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* List of current inclusion folders */}
-                    <div className="space-y-2">
-                      {inclusionFolders.length > 0 ? (
-                        <div>
-                          <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">Selected Folders:</h4>
-                          <ul className="space-y-1">
-                            {inclusionFolders.map((folder, index) => (
-                              <li key={index} className="flex items-center justify-between bg-white dark:bg-gray-700 p-2 rounded">
-                                <span className="text-sm text-gray-800 dark:text-gray-200" title={folder}>
-                                  {formatFolderPath(folder)}
-                                </span>
-                                <button
-                                  onClick={() => handleRemoveInclusionFolder(folder)}
-                                  className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                                >
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                  </svg>
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-
-                          {/* Add a clear call-to-action */}
-                          <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-md flex items-center">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-green-600 dark:text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                            </svg>
-                            <div>
-                              <p className="text-sm font-medium text-green-800 dark:text-green-200">Folders selected!</p>
-                              <p className="text-xs text-green-700 dark:text-green-300">Click the "Scan Selected Folders" button above to run p4 reconcile on these locations.</p>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          No folders selected yet. Add folders above to scan specific locations, or use "Scan Workspace" to scan everything.
-                        </div>
-                      )}
-                    </div>
-
-                    {inclusionFolders.length > 0 && (
-                      <div className="mt-3 flex justify-end">
-                        <button
-                          onClick={handleForceRefreshModifiedFiles}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
-                          disabled={isLoadingModifiedFiles}
-                        >
-                          {isLoadingModifiedFiles ? 'Running...' : 'Run On Specified Folders'}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Cache information */}
-                {usingCachedData && cacheTime && (
-                  <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200 text-sm rounded-md">
-                    Using cached data from {formatCacheTime(cacheTime)}. Click Refresh to get latest changes.
-                  </div>
-                )}
-
-                {/* Modified files list - show empty state if no scan has been run */}
-                {!inclusionFolders.length && !hasRunInitialScan && !isLoadingModifiedFiles ? (
-                  <div className="p-8 text-center border border-gray-200 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-900">
-                    <svg className="w-16 h-16 mx-auto text-gray-400 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <h3 className="mt-2 text-lg font-medium text-gray-900 dark:text-gray-100">No scan performed yet</h3>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Use the Scan button above to check for modified files</p>
-                  </div>
-                ) : (
-                  <ModifiedFilesList
-                    files={modifiedFiles}
-                    isLoading={isLoadingModifiedFiles}
-                    error={modifiedFilesError || null}
-                    onRefresh={fetchModifiedFiles}
-                    lastChecked={reconcileStartTime ? new Date(reconcileStartTime).toISOString() : null}
-                    inclusionFolders={inclusionFolders}
-                    onInclusionFoldersChange={handleInclusionFoldersChange}
-                  />
-                )}
-              </div>
-            )}
-          </div>
-        )}
+    <main className="min-h-screen">
+      {/* Connection status header */}
+      <div className={`py-1 px-4 text-sm ${connectionStatus.isConnected
+        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+        : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+        }`}>
+        {connectionStatus.message}
       </div>
 
-      {/* P4 Command Log Viewer */}
-      <P4CommandLogViewer isOpen={showCommandLogs} onClose={() => setShowCommandLogs(false)} />
-
-      {/* Floating scroll-to-top button - replaces the previous scan button */}
-      <div className="fixed bottom-4 right-4 z-10">
-        <button
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="flex items-center justify-center p-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all"
-          title="Scroll to top"
-          aria-label="Scroll to top of page"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
-          </svg>
-        </button>
-      </div>
+      {/* Main content */}
+      {connectionStatus.isConnected ? (
+        <AppLayout />
+      ) : (
+        <div className="flex justify-center items-center h-screen">
+          <div className="p-4 bg-white dark:bg-gray-800 shadow rounded max-w-md w-full">
+            <h2 className="text-xl font-semibold mb-4">Perforce Connection Required</h2>
+            <p className="mb-4">Please ensure your Perforce server is running and properly configured.</p>
+            <button
+              onClick={checkConnection}
+              className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              disabled={isConnecting}
+            >
+              {isConnecting ? 'Connecting...' : 'Try Again'}
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 } 

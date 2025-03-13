@@ -1,4 +1,5 @@
 @import "./colors.css";
+/* Use the correct Tailwind CSS v4 directives */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -46,4 +47,13 @@ body {
 .hide-scrollbar {
     -ms-overflow-style: none; /* IE and Edge */
     scrollbar-width: none; /* Firefox */
+}
+
+/* Force FOUC prevention */
+html {
+    visibility: hidden;
+}
+
+html.styles-loaded {
+    visibility: visible;
 }
