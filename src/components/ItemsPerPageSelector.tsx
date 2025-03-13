@@ -20,7 +20,7 @@ const ItemsPerPageSelector: React.FC<ItemsPerPageSelectorProps> = ({
                 id="items-per-page"
                 value={itemsPerPage}
                 onChange={(e) => onChange(parseInt(e.target.value, 10))}
-                className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md shadow-sm py-1 px-2 focus:outline-none focus:ring-primary-500 focus:border-primary-500 text-sm"
+                className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md shadow-xs py-1 px-2 focus:outline-hidden focus:ring-primary-500 focus:border-primary-500 text-sm"
             >
                 {options.map(option => (
                     <option key={option} value={option}>

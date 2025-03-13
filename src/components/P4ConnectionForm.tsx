@@ -44,7 +44,7 @@ export default function P4ConnectionForm({ onConnect, isLoading = false }: P4Con
           value={config.port}
           onChange={handleChange}
           className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded-md shadow-sm py-2 px-3 
-                   bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none 
+                   bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-hidden 
                    focus:ring-primary-500 focus:border-primary-500"
           placeholder="perforce:1666"
         />
@@ -62,7 +62,7 @@ export default function P4ConnectionForm({ onConnect, isLoading = false }: P4Con
           value={config.user}
           onChange={handleChange}
           className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded-md shadow-sm py-2 px-3 
-                   bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none 
+                   bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-hidden 
                    focus:ring-primary-500 focus:border-primary-500"
           placeholder="username"
         />
@@ -80,7 +80,7 @@ export default function P4ConnectionForm({ onConnect, isLoading = false }: P4Con
           value={config.password}
           onChange={handleChange}
           className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded-md shadow-sm py-2 px-3 
-                   bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none 
+                   bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-hidden 
                    focus:ring-primary-500 focus:border-primary-500"
         />
       </div>
@@ -96,7 +96,7 @@ export default function P4ConnectionForm({ onConnect, isLoading = false }: P4Con
           value={config.client}
           onChange={handleChange}
           className="mt-1 block w-full border border-gray-300 dark:border-gray-700 rounded-md shadow-sm py-2 px-3 
-                   bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none 
+                   bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-hidden 
                    focus:ring-primary-500 focus:border-primary-500"
           placeholder="Optional"
         />
@@ -106,7 +106,7 @@ export default function P4ConnectionForm({ onConnect, isLoading = false }: P4Con
         type="submit"
         disabled={isLoading}
         className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium 
-                text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 
+                text-white bg-primary-600 hover:bg-primary-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 
                 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {isLoading ? 'Connecting...' : 'Connect to Perforce'}

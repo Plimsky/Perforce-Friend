@@ -306,7 +306,7 @@ export default function DirectoryBrowser({
                 {onSelect && (
                     <button
                         onClick={handleSelectCurrentInput}
-                        className="ml-2 px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 flex-shrink-0"
+                        className="ml-2 px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 shrink-0"
                         disabled={!value}
                     >
                         Add Folder
@@ -354,7 +354,7 @@ export default function DirectoryBrowser({
                                         className="px-3 py-2 hover:bg-gray-100 cursor-pointer flex items-center"
                                         style={{ color: '#1F2937' }} // Ensure good contrast
                                     >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-yellow-600 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-yellow-600 mr-2 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                                         </svg>
                                         <span className="truncate font-medium">

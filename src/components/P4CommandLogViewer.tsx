@@ -120,24 +120,24 @@ export default function P4CommandLogViewer({ isOpen, onClose }: P4CommandLogView
 
                 <div className="p-6">
                     <div className="flex space-x-4 mb-4">
-                        <div className="flex-grow">
+                        <div className="grow">
                             <input
                                 type="text"
                                 placeholder="Search commands..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
+                                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-xs focus:outline-hidden focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-700 dark:text-white"
                             />
                         </div>
                         <button
                             onClick={clearLogs}
-                            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                         >
                             Clear Logs
                         </button>
                         <button
                             onClick={loadLogs}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                         >
                             Refresh
                         </button>

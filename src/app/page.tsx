@@ -533,14 +533,14 @@ export default function Home() {
                 <button
                   onClick={() => setShowCommandLogs(true)}
                   className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md 
-                          text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                          text-white bg-blue-600 hover:bg-blue-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
                   Command Logs
                 </button>
                 <button
                   onClick={handleLogout}
                   className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md 
-                      text-white bg-gray-600 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+                      text-white bg-gray-600 hover:bg-gray-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
                 >
                   Logout
                 </button>
@@ -601,7 +601,7 @@ export default function Home() {
                   onClick={handleRefreshFiles}
                   disabled={isLoadingFiles || isLoadingModifiedFiles}
                   className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md 
-                        text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 
+                        text-white bg-primary-600 hover:bg-primary-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 
                         focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isLoadingFiles || isLoadingModifiedFiles ? 'Refreshing...' : 'Refresh'}
@@ -611,7 +611,7 @@ export default function Home() {
                     type="checkbox"
                     checked={showModifiedFiles}
                     onChange={handleToggleModifiedFiles}
-                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded-sm"
                   />
                   <span>Show Modified Files</span>
                 </label>
@@ -665,7 +665,7 @@ export default function Home() {
                       onClick={() => fetchModifiedFiles()}
                       disabled={isLoadingModifiedFiles || !p4ClientRoot}
                       className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md 
-                                text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 
+                                text-white bg-primary-600 hover:bg-primary-700 focus:outline-hidden focus:ring-2 focus:ring-offset-2 
                                 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isLoadingModifiedFiles ? 'Loading...' : 'Apply'}
@@ -705,7 +705,7 @@ export default function Home() {
                         className={`inline-flex items-center px-3 py-1.5 border border-transparent shadow-sm text-sm font-medium rounded ${inclusionFolders.length
                           ? 'text-white bg-green-600 hover:bg-green-700 ring-2 ring-green-300 dark:ring-green-500 ring-offset-2'
                           : 'text-white bg-green-600 hover:bg-green-700'
-                          } focus:outline-none`}
+                          } focus:outline-hidden`}
                         disabled={isLoadingModifiedFiles}
                       >
                         {isLoadingModifiedFiles ? 'Scanning...' : inclusionFolders.length ? 'Scan Selected Folders' : 'Scan Workspace'}
@@ -717,14 +717,14 @@ export default function Home() {
                           className={`inline-flex items-center px-3 py-1.5 border border-transparent shadow-sm text-sm font-medium rounded ${inclusionFolders.length
                             ? 'text-white bg-green-600 hover:bg-green-700 ring-2 ring-green-300 dark:ring-green-500 ring-offset-2'
                             : 'text-white bg-green-600 hover:bg-green-700'
-                            } focus:outline-none`}
+                            } focus:outline-hidden`}
                           disabled={isLoadingModifiedFiles}
                         >
                           {isLoadingModifiedFiles ? 'Scanning...' : inclusionFolders.length ? 'Scan Selected Folders' : 'Scan Workspace'}
                         </button>
                         <button
                           onClick={handleForceRefreshModifiedFiles}
-                          className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none"
+                          className="inline-flex items-center px-3 py-1.5 border border-gray-300 dark:border-gray-600 shadow-xs text-sm font-medium rounded-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-hidden"
                           disabled={isLoadingModifiedFiles}
                         >
                           {isLoadingModifiedFiles ? 'Refreshing...' : 'Refresh'}
@@ -753,7 +753,7 @@ export default function Home() {
                     <div className="flex justify-end">
                       <button
                         onClick={handleScanModifiedFiles}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-sm"
                       >
                         Scan Now
                       </button>
@@ -813,7 +813,7 @@ export default function Home() {
                           <h4 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">Selected Folders:</h4>
                           <ul className="space-y-1">
                             {inclusionFolders.map((folder, index) => (
-                              <li key={index} className="flex items-center justify-between bg-white dark:bg-gray-700 p-2 rounded">
+                              <li key={index} className="flex items-center justify-between bg-white dark:bg-gray-700 p-2 rounded-sm">
                                 <span className="text-sm text-gray-800 dark:text-gray-200" title={folder}>
                                   {formatFolderPath(folder)}
                                 </span>
@@ -851,7 +851,7 @@ export default function Home() {
                       <div className="mt-3 flex justify-end">
                         <button
                           onClick={handleForceRefreshModifiedFiles}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-sm"
                           disabled={isLoadingModifiedFiles}
                         >
                           {isLoadingModifiedFiles ? 'Running...' : 'Run On Specified Folders'}
@@ -901,7 +901,7 @@ export default function Home() {
       <div className="fixed bottom-4 right-4 z-10">
         <button
           onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          className="flex items-center justify-center p-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all"
+          className="flex items-center justify-center p-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 focus:outline-hidden focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all"
           title="Scroll to top"
           aria-label="Scroll to top of page"
         >

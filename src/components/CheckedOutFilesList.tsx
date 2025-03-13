@@ -301,7 +301,7 @@ export default function CheckedOutFilesList({ files, isLoading, error }: Checked
                 id="filterAction"
                 value={filterAction}
                 onChange={(e) => setFilterAction(e.target.value)}
-                className="border border-gray-300 dark:border-gray-700 rounded px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200"
+                className="border border-gray-300 dark:border-gray-700 rounded-sm px-2 py-1 text-sm bg-white dark:bg-gray-800 dark:text-gray-200"
               >
                 <option value="all">All</option>
                 <option value="edit">Edit</option>
@@ -349,7 +349,7 @@ export default function CheckedOutFilesList({ files, isLoading, error }: Checked
       {renderFiltersAndControls()}
 
       {isLoading ? (
-        <div className="p-4 text-center border rounded bg-gray-50 dark:bg-gray-800">
+        <div className="p-4 text-center border rounded-sm bg-gray-50 dark:bg-gray-800">
           <div className="animate-pulse">Loading checked out files...</div>
         </div>
       ) : (

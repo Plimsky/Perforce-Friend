@@ -458,12 +458,12 @@ export default function ModifiedFilesList({
     // Only show the error screen for critical errors, not warnings
     if (error && !isWarning) {
         return (
-            <div className="p-4 text-red-500 border border-red-300 rounded bg-red-50 dark:bg-red-900/20 dark:border-red-800">
+            <div className="p-4 text-red-500 border border-red-300 rounded-sm bg-red-50 dark:bg-red-900/20 dark:border-red-800">
                 <h3 className="font-semibold mb-2">Error loading modified files</h3>
                 <p>{error}</p>
                 <button
                     onClick={onRefresh}
-                    className="mt-2 px-4 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+                    className="mt-2 px-4 py-1 bg-red-500 text-white rounded-sm hover:bg-red-600"
                 >
                     Retry
                 </button>
@@ -475,7 +475,7 @@ export default function ModifiedFilesList({
         <div className="space-y-4">
             {/* Display warning if present */}
             {isWarning && (
-                <div className="p-3 mb-4 text-yellow-800 border border-yellow-300 rounded bg-yellow-50 dark:bg-yellow-900/20 dark:border-yellow-800 dark:text-yellow-200">
+                <div className="p-3 mb-4 text-yellow-800 border border-yellow-300 rounded-sm bg-yellow-50 dark:bg-yellow-900/20 dark:border-yellow-800 dark:text-yellow-200">
                     <p>{error}</p>
                 </div>
             )}
@@ -487,19 +487,19 @@ export default function ModifiedFilesList({
                         placeholder="Filter files..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="px-3 py-1 border rounded w-full md:w-60 dark:bg-gray-800 dark:border-gray-700"
+                        className="px-3 py-1 border rounded-sm w-full md:w-60 dark:bg-gray-800 dark:border-gray-700"
                     />
 
                     <div className="flex items-center space-x-2">
                         <button
                             onClick={onRefresh}
-                            className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
+                            className="px-3 py-1 text-sm bg-blue-500 text-white rounded-sm hover:bg-blue-600"
                         >
                             Refresh
                         </button>
                         <button
                             onClick={() => setShowInclusion(!showInclusion)}
-                            className="px-3 py-1 text-sm bg-gray-200 text-gray-800 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
+                            className="px-3 py-1 text-sm bg-gray-200 text-gray-800 rounded-sm hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600"
                         >
                             {showInclusion ? 'Hide Inclusion' : 'Show Inclusion'}
                         </button>
@@ -562,7 +562,7 @@ export default function ModifiedFilesList({
                     </p>
                     <div className="flex flex-col space-y-2">
                         {inclusionFolders.map((folder, i) => (
-                            <div key={i} className="flex items-center justify-between p-2 bg-white dark:bg-gray-700 rounded border">
+                            <div key={i} className="flex items-center justify-between p-2 bg-white dark:bg-gray-700 rounded-sm border">
                                 <span className="text-sm">{folder}</span>
                                 <button
                                     onClick={() => handleRemoveInclusionFolder(folder)}
@@ -588,7 +588,7 @@ export default function ModifiedFilesList({
                             <button
                                 onClick={() => handleAddInclusionFolder()}
                                 disabled={!newInclusionFolder}
-                                className="px-3 py-1 text-sm bg-blue-500 text-white rounded disabled:opacity-50"
+                                className="px-3 py-1 text-sm bg-blue-500 text-white rounded-sm disabled:opacity-50"
                             >
                                 Add Folder
                             </button>
@@ -662,7 +662,7 @@ export default function ModifiedFilesList({
                                             <button
                                                 key={folder}
                                                 onClick={() => handleAddExclusionFolder(folder)}
-                                                className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600"
+                                                className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-sm border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600"
                                             >
                                                 {folder}
                                             </button>
@@ -679,14 +679,14 @@ export default function ModifiedFilesList({
 
             {/* Files table or loading indicator */}
             {isLoading ? (
-                <div className="text-center p-4 animate-pulse border rounded bg-gray-50 dark:bg-gray-800">
+                <div className="text-center p-4 animate-pulse border rounded-sm bg-gray-50 dark:bg-gray-800">
                     Loading modified files...
                 </div>
             ) : (
                 <div>
                     {/* Files table */}
                     {filteredFiles.length === 0 ? (
-                        <div className="p-4 text-center border rounded">
+                        <div className="p-4 text-center border rounded-sm">
                             No modified files found.
                         </div>
                     ) : (
@@ -793,7 +793,7 @@ export default function ModifiedFilesList({
                                                                 {localPath && file.status !== 'delete' && (
                                                                     <button
                                                                         onClick={() => handleOpenFile(file)}
-                                                                        className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 dark:border-gray-600 shadow-sm text-xs font-medium rounded text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
+                                                                        className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 dark:border-gray-600 shadow-xs text-xs font-medium rounded-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-colors"
                                                                         title="Open file in default editor"
                                                                     >
                                                                         <svg className="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -805,7 +805,7 @@ export default function ModifiedFilesList({
                                                                 {file.status !== 'delete' && (
                                                                     <button
                                                                         onClick={() => handleCheckoutFile(file)}
-                                                                        className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 dark:border-gray-600 shadow-sm text-xs font-medium rounded text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900 hover:bg-green-100 dark:hover:bg-green-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                                                                        className="inline-flex items-center px-2.5 py-1.5 border border-gray-300 dark:border-gray-600 shadow-xs text-xs font-medium rounded-sm text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900 hover:bg-green-100 dark:hover:bg-green-800 focus:outline-hidden focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
                                                                         title="Check out file for edit"
                                                                     >
                                                                         <svg className="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
