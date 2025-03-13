@@ -324,16 +324,8 @@ export default function CheckedOutFilesList({ files, isLoading, error }: Checked
     );
   };
 
-  if (error) {
-    return (
-      <div className="p-4 text-center text-red-600 dark:text-red-400">
-        {error}
-      </div>
-    );
-  }
-
   // For empty files list
-  if (files.length === 0 && !isLoading) {
+  if (files.length === 0 && !isLoading && !error) {
     return (
       <div className="w-full">
         {renderFiltersAndControls()}
@@ -348,9 +340,20 @@ export default function CheckedOutFilesList({ files, isLoading, error }: Checked
     <div className="w-full">
       {renderFiltersAndControls()}
 
+      {/* Display error if present */}
+      {error && (
+        <div className="p-4 mb-4 text-center text-red-600 dark:text-red-400 border border-red-300 rounded bg-red-50 dark:bg-red-900/20">
+          {error}
+        </div>
+      )}
+
       {isLoading ? (
         <div className="p-4 text-center border rounded-sm bg-gray-50 dark:bg-gray-800">
           <div className="animate-pulse">Loading checked out files...</div>
+        </div>
+      ) : files.length === 0 ? (
+        <div className="p-4 text-center text-gray-600 dark:text-gray-400 border rounded">
+          No files are currently checked out in this workspace.
         </div>
       ) : (
         <>

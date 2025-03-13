@@ -1,8 +1,13 @@
 import '@/styles/globals.css';
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
+import StylesLoadedMarker from '@/components/StylesLoadedMarker';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',  // Prevent layout shift with fonts
+  preload: true,    // Prioritize font loading
+});
 
 export const metadata: Metadata = {
   title: 'Perforce Friend',
@@ -20,6 +25,7 @@ export default function RootLayout({
         <main className="min-h-screen">
           {children}
         </main>
+        <StylesLoadedMarker />
       </body>
     </html>
   );

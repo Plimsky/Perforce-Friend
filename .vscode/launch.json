@@ -5,14 +5,13 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Next.js: All-in-One Debug",
+            "name": "Next.js: debug full stack",
             "type": "node-terminal",
             "request": "launch",
-            "command": "npm run dev",
+            "command": "pnpm run dev",
             "cwd": "${workspaceFolder}",
             "sourceMaps": true,
             "skipFiles": ["<node_internals>/**"],
-            "console": "integratedTerminal",
             "preLaunchTask": "clean-next-cache",
             "env": {
                 "NODE_OPTIONS": "--enable-source-maps --inspect"

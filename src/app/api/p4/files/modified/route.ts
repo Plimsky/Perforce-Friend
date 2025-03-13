@@ -283,6 +283,20 @@ export async function GET(req: Request) {
         const url = new URL(req.url);
         let clientRoot = url.searchParams.get("clientRoot") || "";
 
+        // Check if we should skip scanning and just return empty results
+        const skipScan = url.searchParams.get("skipScan") === "true";
+
+        if (skipScan) {
+            console.log("[DEBUG] Skipping scan as requested by skipScan parameter");
+            return NextResponse.json({
+                success: true,
+                files: [],
+                skipScan: true,
+                message: "Scan skipped as requested",
+                commandLogs: [],
+            });
+        }
+
         // Get inclusion folders if provided
         const inclusionFoldersParam = url.searchParams.get("inclusionFolders") || "";
         const inclusionFolders = inclusionFoldersParam

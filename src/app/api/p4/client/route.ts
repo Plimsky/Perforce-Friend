@@ -3,6 +3,7 @@ import { execSync } from "child_process";
 import { promises as fs } from "fs";
 import path from "path";
 import os from "os";
+import { P4Service } from "@/lib/p4Service";
 
 /**
  * Detects the P4 client root using command line commands
@@ -81,32 +82,91 @@ async function findClientRootByP4Config(): Promise<string | null> {
  */
 export async function GET() {
     try {
-        // Try different methods to detect client root
-        let clientRoot = detectClientRoot();
+        const p4Service = P4Service.getInstance();
 
-        // If p4 info didn't work, try looking for P4CONFIG
-        if (!clientRoot) {
-            clientRoot = await findClientRootByP4Config();
-        }
+        // Get connection status from P4 service
+        const status = p4Service.getConnectionStatus();
 
-        // If all else fails, use current directory
-        if (!clientRoot) {
-            clientRoot = process.cwd();
-            console.log(`Using current directory as fallback: ${clientRoot}`);
+        // Check if there's a client root in the P4Service
+        let clientRoot = p4Service.getClientRoot();
+
+        // Flag to indicate if the client root came from actual Perforce
+        let clientRootDetected = !!clientRoot;
+
+        if (!status.isConnected || !clientRoot) {
+            // If not connected or no client root, try to reconnect
+            const result = await p4Service.reconnect();
+
+            // Check for client root again after reconnect
+            clientRoot = p4Service.getClientRoot();
+            clientRootDetected = !!clientRoot;
+
+            // If still no client root, try direct detection methods
+            if (!clientRoot) {
+                // Try various detection methods
+                const directlyDetectedRoot = detectClientRoot();
+
+                if (directlyDetectedRoot) {
+                    // Store the detected root in the service
+                    p4Service.setClientRoot(directlyDetectedRoot);
+                    clientRoot = directlyDetectedRoot;
+                    clientRootDetected = true;
+                    console.log("Client root detected and saved to service:", clientRoot);
+                } else {
+                    // Try P4CONFIG-based detection as a last resort
+                    const configRoot = await findClientRootByP4Config();
+                    if (configRoot) {
+                        p4Service.setClientRoot(configRoot);
+                        clientRoot = configRoot;
+                        clientRootDetected = true;
+                        console.log("Client root found via P4CONFIG and saved to service:", clientRoot);
+                    }
+                }
+            }
+
+            return NextResponse.json({
+                success: result.success,
+                clientRoot: clientRoot || "",
+                clientRootDetected: clientRootDetected,
+                clientName: status.details.client || "",
+                user: status.details.user || "",
+                port: status.details.port || "",
+                message: result.message,
+            });
         }
 
         return NextResponse.json({
             success: true,
-            clientRoot,
+            clientRoot: clientRoot || "",
+            clientRootDetected: clientRootDetected,
+            clientName: status.details.client || "",
+            user: status.details.user || "",
+            port: status.details.port || "",
         });
     } catch (error) {
-        console.error("Error in client API:", error);
+        console.error("Error getting client details:", error);
+
+        // Try direct detection as a fallback
+        const directlyDetectedRoot = detectClientRoot();
+        const p4Service = P4Service.getInstance();
+
+        if (directlyDetectedRoot) {
+            // Store the detected root in the service
+            p4Service.setClientRoot(directlyDetectedRoot);
+
+            return NextResponse.json({
+                success: true,
+                clientRoot: directlyDetectedRoot,
+                clientRootDetected: true,
+                message: "Detected client root directly",
+            });
+        }
+
         return NextResponse.json(
             {
                 success: false,
-                error: error instanceof Error ? error.message : "Unknown error",
-                // Still include cwd as last resort
-                clientRoot: process.cwd(),
+                clientRootDetected: false,
+                error: error instanceof Error ? error.message : "Unknown error getting client details",
             },
             { status: 500 },
         );

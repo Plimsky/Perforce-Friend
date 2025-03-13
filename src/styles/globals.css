@@ -1,18 +1,18 @@
-@import './colors.css' layer(base);
-@import 'tailwindcss';
+@import "./colors.css" layer(base);
+@import "tailwindcss";
 
 @theme {
-  --color-primary-50: rgb(var(--color-primary-50));
-  --color-primary-100: rgb(var(--color-primary-100));
-  --color-primary-200: rgb(var(--color-primary-200));
-  --color-primary-300: rgb(var(--color-primary-300));
-  --color-primary-400: rgb(var(--color-primary-400));
-  --color-primary-500: rgb(var(--color-primary-500));
-  --color-primary-600: rgb(var(--color-primary-600));
-  --color-primary-700: rgb(var(--color-primary-700));
-  --color-primary-800: rgb(var(--color-primary-800));
-  --color-primary-900: rgb(var(--color-primary-900));
-  --color-primary-950: rgb(var(--color-primary-950));
+    --color-primary-50: rgb(var(--color-primary-50));
+    --color-primary-100: rgb(var(--color-primary-100));
+    --color-primary-200: rgb(var(--color-primary-200));
+    --color-primary-300: rgb(var(--color-primary-300));
+    --color-primary-400: rgb(var(--color-primary-400));
+    --color-primary-500: rgb(var(--color-primary-500));
+    --color-primary-600: rgb(var(--color-primary-600));
+    --color-primary-700: rgb(var(--color-primary-700));
+    --color-primary-800: rgb(var(--color-primary-800));
+    --color-primary-900: rgb(var(--color-primary-900));
+    --color-primary-950: rgb(var(--color-primary-950));
 }
 
 /*
@@ -24,13 +24,13 @@
   color utility to any element that depends on these defaults.
 */
 @layer base {
-  *,
-  ::after,
-  ::before,
-  ::backdrop,
-  ::file-selector-button {
-    border-color: var(--color-gray-200, currentColor);
-  }
+    *,
+    ::after,
+    ::before,
+    ::backdrop,
+    ::file-selector-button {
+        border-color: var(--color-gray-200, currentColor);
+    }
 }
 
 /* Add custom animation for slow bounce */
@@ -76,4 +76,13 @@ body {
 .hide-scrollbar {
     -ms-overflow-style: none; /* IE and Edge */
     scrollbar-width: none; /* Firefox */
+}
+
+/* Force FOUC prevention */
+html {
+    visibility: hidden;
+}
+
+html.styles-loaded {
+    visibility: visible;
 }
